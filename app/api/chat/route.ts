@@ -89,7 +89,6 @@ const r = await fetch(url, {
     Authorization: `Bearer ${SHOP_TOKEN}`,
   },
 });
-    
 
     if (r.ok) {
       const data = await r.json();
