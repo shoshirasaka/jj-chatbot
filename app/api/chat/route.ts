@@ -8,7 +8,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const SHOP_API_BASE = "https://shop.jellyjellycafe.com/chatbot-api/products";
-const SHOP_TOKEN = process.env.test123 || ""; // test123 は本番では env に
+const SHOP_TOKEN = process.env.CHATBOT_TOKEN || "";
 
 
 function cors(origin: string | null) {
@@ -79,14 +79,18 @@ try {
     recommended_items = [];
   } else {
     // まずは最新順で多めに取って、UI側で3件に切る想定
-    const url = `${SHOP_API_BASE}?limit=50&offset=0&token=${encodeURIComponent(
-      SHOP_TOKEN
-    )}`;
+    
+const url = `${SHOP_API_BASE}?limit=50&offset=0`;
 
-    const r = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+const r = await fetch(url, {
+  method: "GET",
+  headers: {
+    Accept: "application/json",
+    Authorization: `Bearer ${SHOP_TOKEN}`,
+  },
+});
+    
+    
 
     if (r.ok) {
       const data = await r.json();
