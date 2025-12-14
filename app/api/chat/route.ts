@@ -8,7 +8,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const SHOP_API_BASE = "https://shop.jellyjellycafe.com/chatbot-api/products";
-const SHOP_TOKEN = process.env.CHATBOT_TOKEN || "";
+const SHOP_TOKEN = process.env.SHOP_TOKEN || "";
 
 
 function cors(origin: string | null) {
