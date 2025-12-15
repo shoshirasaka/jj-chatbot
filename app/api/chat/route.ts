@@ -162,34 +162,41 @@ export async function POST(req: Request) {
     let recommended_items: any[] = [];
 
 if (SHOP_TOKEN && titles.length) {
-  for (const title of titles.slice(0, 3)) {
+for (const t of titles.slice(0, 3)) {
+  const queries = buildQueriesForTitle(t); // ← これが「表記揺れ吸収」
 
-    // 表記揺れ候補（queries方式）
-    const queries = buildQueriesForTitle(title);
+  let hit: any | null = null;
+  let fallback: any | null = null;
 
-    let best: any | null = null;
+  for (const q of queries) {
+    const r = await shopSearchByQ(q);
 
-    for (const q of queries) {
-      const r = await shopSearchByQ(q);
+    debug_b.searches.push({
+      title: t,
+      q,
+      ok: r.ok,
+      status: r.status,
+      url: r.url,
+      count: r.items.length,
+      sample_name: r.items[0]?.name ?? null,
+    });
 
-      debug_b.searches.push({
-        q,
-        ok: r.ok,
-        status: r.status,
-        url: r.url,
-        count: r.items.length,
-        sample_name: r.items[0]?.name ?? null,
-      });
+    if (!r.ok || !r.items.length) continue;
 
-      if (!r.ok) continue;
+    // 1在庫あり最優先
+    const bestInStock = pickBestInStock(q, r.items);
+    if (bestInStock) { hit = bestInStock; break; }
 
-      // 在庫＆公開だけから「最も一致する商品」を選ぶ（items[0]禁止）
-      const hit = pickBestInStock(q, r.items);
-      if (hit) { best = hit; break; }
+    // 2在庫なしでも“近い”候補は fallback に保持（次ステップ「在庫なし代替」に使う）
+    if (!fallback) {
+      // visibleだけ拾っておく（in_stockは問わない）
+      fallback = r.items.find(x => x?.is_visible) ?? null;
     }
-
-    if (best) recommended_items.push(best);
   }
+
+  if (hit) recommended_items.push(hit);
+  else if (fallback) recommended_items.push(fallback); // ← ここが次の「在庫なし代替」への入口
+}
 }
 
     return new Response(
