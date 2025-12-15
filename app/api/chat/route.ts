@@ -115,6 +115,20 @@ async function shopSearchByQ(q: string) {
   return { ok: true, status: r.status, items, url };
 }
 
+async function shopSearchByCategory(categoryId: number, limit = 200) {
+  const url =
+    `${SHOP_API_BASE}?category_id=${encodeURIComponent(String(categoryId))}&limit=${encodeURIComponent(String(limit))}&offset=0&token=` +
+    encodeURIComponent(SHOP_TOKEN);
+
+  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!r.ok) return { ok: false, status: r.status, items: [] as any[], url };
+
+  const data = await r.json();
+  const items = Array.isArray(data?.items) ? data.items : [];
+  return { ok: true, status: r.status, items, url };
+}
+
+
 async function shopListByCategory(categoryId: number, limit = 200, offset = 0) {
   const url =
     `${SHOP_API_BASE}?category_id=${encodeURIComponent(String(categoryId))}` +
