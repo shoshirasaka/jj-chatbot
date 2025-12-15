@@ -2,12 +2,10 @@ import OpenAI from "openai";
 
 export const runtime = "nodejs";
 
-const ALLOWED_ORIGINS = new Set([
-  "https://shop.jellyjellycafe.com",
-]);
+const ALLOWED_ORIGINS = new Set(["https://shop.jellyjellycafe.com"]);
 
 const SHOP_API_BASE = "https://shop.jellyjellycafe.com/chatbot-api/products";
-const SHOP_TOKEN = process.env.SHOP_TOKEN || "";
+const SHOP_TOKEN = process.env.SHOP_TOKEN || ""; // test123 をVercel envへ
 
 function cors(origin: string | null) {
   const allowOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : "";
@@ -16,7 +14,7 @@ function cors(origin: string | null) {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
-    "Vary": "Origin",
+    Vary: "Origin",
   };
 }
 
@@ -27,31 +25,40 @@ export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: cors(origin) });
 }
 
+function safeJsonParse<T>(text: string): T | null {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function shopSearchByQ(q: string) {
+  const url =
+    `${SHOP_API_BASE}?q=${encodeURIComponent(q)}&limit=10&offset=0&token=` +
+    encodeURIComponent(SHOP_TOKEN);
+
+  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!r.ok) return { ok: false, status: r.status, items: [] as any[], url };
+
+  const data = await r.json();
+  const items = Array.isArray(data?.items) ? data.items : [];
+  return { ok: true, status: r.status, items, url };
+}
 
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
   const headers = { "Content-Type": "application/json", ...cors(origin) };
 
-  // ✅ ここで1回だけ宣言
-  let recommended_items: any[] = [];
-
-  // ✅ debug もここで1回だけ宣言
-  let debug_shop: any = {
+  let debug_b: any = {
     step: "init",
     token_set: !!SHOP_TOKEN,
-    url: null,
-    status: null,
-    ok: null,
-    total_items: null,
-    visible_count: null,
-    instock_count: null,
-    both_count: null,
-    sample: null,
+    extracted_titles: [],
+    searches: [] as any[],
     error: null,
   };
 
   try {
-    // 1 OpenAI
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "OPENAI_API_KEY is missing" }), {
@@ -60,11 +67,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const client = new OpenAI({ apiKey });
-
     const body = await req.json();
     const messages = (body?.messages ?? []) as Msg[];
-
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: "messages is required" }), {
         status: 400,
@@ -72,52 +76,61 @@ export async function POST(req: Request) {
       });
     }
 
+    const client = new OpenAI({ apiKey });
+
+    // ✅ ここがBの肝：文章＋タイトル配列をJSONで返させる
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",
+      temperature: 0.7,
       messages: [
         {
           role: "system",
-          content:
-            "あなたはボードゲームカフェの店員です。日本語でカジュアルに答えてください。送られてきたキーワードから、おすすめゲームを提案してください。",
+          content: [
+            "あなたはボードゲームカフェの店員です。日本語でカジュアルに返答してください。",
+            "必ず次のJSONだけを返してください（コードブロック禁止）。",
+            `{"reply":"...","titles":["ゲーム名1","ゲーム名2","ゲーム名3"]}`,
+            "titlesは商品検索に使うので、できるだけ正確な正式名称にしてください。",
+          ].join("\n"),
         },
         ...messages,
       ],
-      temperature: 0.7,
     });
 
-    const reply = completion.choices[0]?.message?.content ?? "";
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const parsed = safeJsonParse<{ reply: string; titles: string[] }>(raw);
 
-    // 2) EC-CUBE（おすすめ）
-    if (!SHOP_TOKEN) {
-      debug_shop.step = "no_token";
-    } else {
-      const url = `${SHOP_API_BASE}?limit=5000&offset=0&token=${encodeURIComponent(
-        SHOP_TOKEN
-      )}`;
-      debug_shop.url = url;
+    // JSONが壊れて返ってきた時の保険（最低限動かす）
+    const reply = parsed?.reply ?? raw;
+    const titles = Array.isArray(parsed?.titles) ? parsed!.titles : [];
 
-      const r = await fetch(url, { headers: { Accept: "application/json" } });
-      debug_shop.status = r.status;
-      debug_shop.ok = r.ok;
+    debug_b.extracted_titles = titles;
 
-      if (r.ok) {
-        const data = await r.json();
-        const items = Array.isArray(data?.items) ? data.items : [];
+    // ✅ EC-CUBE検索して、AIが言ったタイトルと一致する商品を拾う
+    let recommended_items: any[] = [];
 
-        debug_shop.total_items = items.length;
-        debug_shop.visible_count = items.filter((x: any) => x?.is_visible).length;
-        debug_shop.instock_count = items.filter((x: any) => x?.in_stock).length;
-        debug_shop.both_count = items.filter(
-          (x: any) => x?.is_visible && x?.in_stock
-        ).length;
-        debug_shop.sample = items[0] ?? null;
+    if (SHOP_TOKEN && titles.length) {
+      for (const t of titles.slice(0, 3)) {
+        const r = await shopSearchByQ(t);
 
-        recommended_items = items
-          .filter((x: any) => x?.is_visible && x?.in_stock)
-          .slice(0, 10);
-      } else {
-        const t = await r.text().catch(() => "");
-        debug_shop.error = t.slice(0, 300);
+        debug_b.searches.push({
+          q: t,
+          ok: r.ok,
+          status: r.status,
+          url: r.url,
+          count: r.items.length,
+          sample_name: r.items[0]?.name ?? null,
+        });
+
+        if (!r.ok) continue;
+
+        // 「公開&在庫」だけに絞る（あなたのAPIの定義に合わせる）
+        const hit = r.items.find((x: any) => x?.is_visible && x?.in_stock);
+
+        // 見つからなければとりあえず先頭（公開/在庫条件がAPI側で落ちてるケース対策）
+        const fallback = r.items[0];
+
+        if (hit) recommended_items.push(hit);
+        else if (fallback) recommended_items.push(fallback);
       }
     }
 
@@ -125,20 +138,15 @@ export async function POST(req: Request) {
       JSON.stringify({
         reply,
         recommended_items,
-        api_version: "2025-12-15-b",
-        debug_shop,
+        api_version: "2025-12-15-B",
+        debug_b, // いまは残してOK。安定したら消す。
       }),
       { status: 200, headers }
     );
   } catch (e: any) {
-    debug_shop = { ...debug_shop, step: "catch", error: e?.message ?? String(e) };
-
+    debug_b = { ...debug_b, step: "catch", error: e?.message ?? String(e) };
     return new Response(
-      JSON.stringify({
-        error: e?.message ?? "unknown error",
-        api_version: "2025-12-15-b",
-        debug_shop,
-      }),
+      JSON.stringify({ error: e?.message ?? "unknown error", debug_b }),
       { status: 500, headers }
     );
   }
