@@ -33,6 +33,38 @@ function safeJsonParse<T>(text: string): T | null {
   }
 }
 
+
+function safeJsonParse<T>(text: string): T | null {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+/* ===== ここから追加 ===== */
+
+function extractJsonObject(raw: string): any | null {
+  // 1) まず全文をJSONとして試す
+  const direct = safeJsonParse<any>(raw);
+  if (direct) return direct;
+
+  // 2) 文中に混ざったJSONを抜き出す
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+
+  const candidate = raw.slice(start, end + 1).trim();
+  return safeJsonParse<any>(candidate);
+}
+
+function stripTrailingJson(raw: string): string {
+  // 末尾にJSONがくっついてたら落とす
+  return raw.replace(/\{[\s\S]*\}\s*$/m, "").trim();
+}
+
+/* ===== 追加ここまで ===== */
+
 async function shopSearchByQ(q: string) {
   const url =
     `${SHOP_API_BASE}?q=${encodeURIComponent(q)}&limit=10&offset=0&token=` +
@@ -149,12 +181,17 @@ export async function POST(req: Request) {
       ],
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "";
-    const parsed = safeJsonParse<{ reply: string; titles: string[] }>(raw);
+const raw = completion.choices[0]?.message?.content ?? "";
+const parsed = extractJsonObject(raw) as { reply?: string; titles?: string[] } | null;
 
-    // JSONが壊れて返ってきた時の保険（最低限動かす）
-    const reply = parsed?.reply ?? raw;
-    const titles = Array.isArray(parsed?.titles) ? parsed!.titles : [];
+const reply =
+  typeof parsed?.reply === "string" && parsed.reply.trim()
+    ? parsed.reply
+    : stripTrailingJson(raw);
+
+const titles = Array.isArray(parsed?.titles) ? parsed!.titles : [];
+    
+    
 
     debug_b.extracted_titles = titles;
 
