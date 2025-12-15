@@ -330,8 +330,12 @@ for (const t of titles.slice(0, 3)) {
 
   if (hit) recommended_items.push(hit);
   else if (fallback) recommended_items.push(fallback); // ← ここが次の「在庫なし代替」への入口
-  
-  // ===== 年齢ワードがあれば「◯歳以上カテゴリ」に属する商品だけに絞る =====
+
+}
+}
+
+
+// ===== 年齢ワードがあれば「◯歳以上カテゴリ」に属する商品だけに絞る =====
 const lastUserText =
   messages.filter((m) => m.role === "user").slice(-1)[0]?.content ?? "";
 
@@ -340,16 +344,12 @@ const ageCategoryId = AGE_TRIGGER_RE.test(lastUserText)
   : null;
 
 if (ageCategoryId) {
-  // ここで “その年齢カテゴリに属している商品だけ” 残す
   recommended_items = recommended_items.filter((it) => hasCategory(it, ageCategoryId));
   debug_b.age_filter = { triggered: true, ageCategoryId };
 } else {
   debug_b.age_filter = { triggered: false, ageCategoryId: null };
 }
-  
-  
-}
-}
+
 
 // ===== A: 取扱いがある商品だけを返答に反映する =====
 const pickedNames = recommended_items
@@ -360,7 +360,7 @@ const pickedNames = recommended_items
 let finalReply = reply;
 
 if (pickedNames.length === 0) {
-  // ✅ 年齢フィルタが発火しているなら「カテゴリ内ランダム3」で救済
+  // 年齢フィルタが発火しているなら「カテゴリ内ランダム3」で救済
   const ageCat = debug_b?.age_filter?.ageCategoryId;
 
   if (debug_b?.age_filter?.triggered && typeof ageCat === "number") {
