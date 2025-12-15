@@ -14,7 +14,7 @@ function cors(origin: string | null) {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
-    Vary: "Origin",
+    "Vary": "Origin",
   };
 }
 
@@ -24,15 +24,6 @@ export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin");
   return new Response(null, { status: 204, headers: cors(origin) });
 }
-
-function safeJsonParse<T>(text: string): T | null {
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  }
-}
-
 
 function safeJsonParse<T>(text: string): T | null {
   try {
