@@ -7,6 +7,52 @@ const ALLOWED_ORIGINS = new Set(["https://shop.jellyjellycafe.com"]);
 const SHOP_API_BASE = "https://shop.jellyjellycafe.com/chatbot-api/products";
 const SHOP_TOKEN = process.env.SHOP_TOKEN || ""; // test123 をVercel envへ
 
+// 年齢カテゴリ（◯歳以上）
+const AGE_CATEGORY_MAP: Record<number, number> = {
+  3: 163,
+  4: 164,
+  5: 165,
+  6: 166,
+  7: 167,
+  8: 168,
+  9: 169,
+  10: 170,
+  11: 171,
+  12: 172,
+  13: 173,
+  14: 174,
+  15: 175,
+  16: 176,
+};
+
+const AGE_TRIGGER_RE = /(\d{1,2})\s*(歳|才)|子ども|子供|小学生/i;
+
+// 「7才」などから “対象カテゴリID” を決める
+function detectAgeCategoryId(text: string): number | null {
+  const m = text.match(/(\d{1,2})\s*(歳|才)/);
+  if (m) {
+    const age = Math.max(0, Math.min(99, Number(m[1])));
+
+    // 3未満は3へ、16超は16へ丸める
+    const clamped = Math.max(3, Math.min(16, age));
+    return AGE_CATEGORY_MAP[clamped] ?? null;
+  }
+
+  // 「子ども/小学生」だけで年齢が無い場合は、運用上のデフォルトを決める
+  // ここは好みで変更OK（例：小学生=6歳以上）
+  if (/(子ども|子供|小学生)/i.test(text)) {
+    return 166; // 6歳以上
+  }
+
+  return null;
+}
+
+function hasCategory(item: any, categoryId: number): boolean {
+  const ids = Array.isArray(item?.category_ids) ? item.category_ids : [];
+  return ids.map((x: any) => Number(x)).includes(categoryId);
+}
+
+
 function cors(origin: string | null) {
   const allowOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : "";
   return {
@@ -243,6 +289,24 @@ for (const t of titles.slice(0, 3)) {
 
   if (hit) recommended_items.push(hit);
   else if (fallback) recommended_items.push(fallback); // ← ここが次の「在庫なし代替」への入口
+  
+  // ===== 年齢ワードがあれば「◯歳以上カテゴリ」に属する商品だけに絞る =====
+const lastUserText =
+  messages.filter((m) => m.role === "user").slice(-1)[0]?.content ?? "";
+
+const ageCategoryId = AGE_TRIGGER_RE.test(lastUserText)
+  ? detectAgeCategoryId(lastUserText)
+  : null;
+
+if (ageCategoryId) {
+  // ここで “その年齢カテゴリに属している商品だけ” 残す
+  recommended_items = recommended_items.filter((it) => hasCategory(it, ageCategoryId));
+  debug_b.age_filter = { triggered: true, ageCategoryId };
+} else {
+  debug_b.age_filter = { triggered: false, ageCategoryId: null };
+}
+  
+  
 }
 }
 
