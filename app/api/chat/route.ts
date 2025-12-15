@@ -60,7 +60,7 @@ const completion = await client.chat.completions.create({
     {
       role: "system",
       content:
-        "あなたはボードゲームカフェの店員です。日本語でカジュアルに答えてください。最初に条件確認の質問を1つしてから、おすすめを提案してください。",
+        "あなたはボードゲームカフェの店員です。日本語でカジュアルに答えてください。送られてきたキーワードから、おすすめゲームを提案してください。",
     },
     ...messages,
   ],
@@ -72,53 +72,74 @@ const reply = completion.choices[0]?.message?.content ?? "";
 // --- ここから：おすすめ商品をEC-CUBEから取得して返す（A） ---
 let recommended_items: any[] = [];
 
+let debug_shop: any = {
+  token_set: !!SHOP_TOKEN,
+  url: null,
+  status: null,
+  ok: null,
+  total_items: null,
+  visible_count: null,
+  instock_count: null,
+  both_count: null,
+  sample: null,
+  error: null,
+};
+
 try {
   if (!SHOP_TOKEN) {
-    // トークン未設定なら無理に落とさない（デバッグしやすく）
+    // トークン未設定なら無理に落とさない
     recommended_items = [];
   } else {
-    // まずは最新順で多めに取って、UI側で3件に切る想定
-    
-const url = `${SHOP_API_BASE}?limit=50&offset=0`;
+    const url = `${SHOP_API_BASE}?limit=50&offset=0&token=${encodeURIComponent(
+      SHOP_TOKEN
+    )}`;
+    debug_shop.url = url;
 
-const r = await fetch(url, {
-  method: "GET",
-  headers: {
-    Accept: "application/json",
-    Authorization: `Bearer ${SHOP_TOKEN}`,
-  },
-});
+    const r = await fetch(url, { headers: { Accept: "application/json" } });
+
+    debug_shop.status = r.status;
+    debug_shop.ok = r.ok;
 
     if (r.ok) {
       const data = await r.json();
-
       const items = Array.isArray(data?.items) ? data.items : [];
 
-      // 条件：is_visible && in_stock のものだけ
+      debug_shop.total_items = items.length;
+      debug_shop.visible_count = items.filter((x: any) => x?.is_visible).length;
+      debug_shop.instock_count = items.filter((x: any) => x?.in_stock).length;
+      debug_shop.both_count = items.filter(
+        (x: any) => x?.is_visible && x?.in_stock
+      ).length;
+      debug_shop.sample = items[0] ?? null;
+
       recommended_items = items
         .filter((x: any) => x && x.is_visible && x.in_stock)
-        .slice(0, 10); // サーバ側は多め、UIで3件にしてOK
+        .slice(0, 10);
+    } else {
+      const t = await r.text().catch(() => "");
+      debug_shop.error = t.slice(0, 300);
     }
   }
-} catch {
+} catch (e: any) {
+  debug_shop.error = e?.message ?? String(e);
   recommended_items = [];
 }
+// --- ここまで ---
 // --- ここまで ---
 
 return new Response(
   JSON.stringify({
     reply,
-    recommended_items,         // ←必ず返す
-    api_version: "2025-12-14-a" // ←これを目印に
+    recommended_items,
+    api_version: "2025-12-15-a",
+    debug_shop,
   }),
   { status: 200, headers }
 );
     
     
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e?.message ?? "unknown error" }), {
-      status: 500,
-      headers,
-    });
-  }
+} catch (e: any) {
+  debug_shop = { ...debug_shop, step: "catch", error: e?.message ?? String(e) };
+  recommended_items = [];
+}
 }
