@@ -10,7 +10,6 @@ const ALLOWED_ORIGINS = new Set([
 const SHOP_API_BASE = "https://shop.jellyjellycafe.com/chatbot-api/products";
 const SHOP_TOKEN = process.env.SHOP_TOKEN || "";
 
-
 function cors(origin: string | null) {
   // Originが許可されていれば返す。違えば空にしてブラウザがブロックする
   const allowOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : "";
@@ -106,10 +105,14 @@ const r = await fetch(url, {
 }
 // --- ここまで ---
 
-return new Response(JSON.stringify({ reply, recommended_items }), {
-  status: 200,
-  headers,
-});
+return new Response(
+  JSON.stringify({
+    reply,
+    recommended_items,         // ←必ず返す
+    api_version: "2025-12-14-a" // ←これを目印に
+  }),
+  { status: 200, headers }
+);
     
     
   } catch (e: any) {
