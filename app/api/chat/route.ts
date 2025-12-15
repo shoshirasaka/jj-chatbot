@@ -115,6 +115,33 @@ async function shopSearchByQ(q: string) {
   return { ok: true, status: r.status, items, url };
 }
 
+async function shopListByCategory(categoryId: number, limit = 200, offset = 0) {
+  const url =
+    `${SHOP_API_BASE}?category_id=${encodeURIComponent(String(categoryId))}` +
+    `&limit=${encodeURIComponent(String(limit))}` +
+    `&offset=${encodeURIComponent(String(offset))}` +
+    `&token=${encodeURIComponent(SHOP_TOKEN)}`;
+
+  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!r.ok) return { ok: false, status: r.status, items: [] as any[], url };
+
+  const data = await r.json();
+  const items = Array.isArray(data?.items) ? data.items : [];
+  return { ok: true, status: r.status, items, url };
+}
+
+// 在庫あり・表示ありだけからランダムに最大take件
+function pickRandomInStock(items: any[], take = 3) {
+  const pool = items.filter((x: any) => x?.is_visible && x?.in_stock);
+
+  // シャッフル（Fisher–Yates）
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i],pool[j]] = [pool[j],pool[i]];
+  }
+  return pool.slice(0, take);
+}
+
 
 
 
@@ -319,8 +346,40 @@ const pickedNames = recommended_items
 let finalReply = reply;
 
 if (pickedNames.length === 0) {
-  finalReply =
-    "ごめんなさい、その条件だと在庫のある商品が見つからなかった！人数・時間・好きな系統（協力/対戦/ワイワイ）を教えてもらえる？";
+  // ✅ 年齢フィルタが発火しているなら「カテゴリ内ランダム3」で救済
+  const ageCat = debug_b?.age_filter?.ageCategoryId;
+
+  if (debug_b?.age_filter?.triggered && typeof ageCat === "number") {
+    const r2 = await shopListByCategory(ageCat, 200, 0);
+
+    debug_b.age_filter.fallback_list = {
+      ok: r2.ok,
+      status: r2.status,
+      url: r2.url,
+      total: r2.items.length,
+    };
+
+    if (r2.ok && r2.items.length) {
+      const picked3 = pickRandomInStock(r2.items, 3);
+
+      if (picked3.length) {
+        recommended_items = picked3;
+
+        const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
+        finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+      } else {
+        finalReply =
+          "ごめんなさい、その年齢カテゴリで在庫のある商品が見つからなかった…！別の年齢/人数/時間も教えて〜";
+      }
+    } else {
+      finalReply =
+        "ごめんなさい、その年齢カテゴリの商品一覧が取得できなかった…！少し時間をおいてもう一度試してみて〜";
+    }
+  } else {
+    // 年齢指定じゃない普通の失敗
+    finalReply =
+      "ごめんなさい、その条件だと在庫のある商品が見つからなかった！人数・時間・好きな系統（協力/対戦/ワイワイ）を教えてもらえる？";
+  }
 } else {
   // ===== B: 採用できた商品だけで自然文を生成（2回目のOpenAI） =====
   try {
@@ -345,7 +404,6 @@ if (pickedNames.length === 0) {
     const text2 = completion2.choices[0]?.message?.content ?? "";
     if (text2.trim()) finalReply = text2.trim();
   } catch {
-    // 2回目が落ちてもAの安全文に戻す
     const show = pickedNames.slice(0, 3).join("」「");
     finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
   }
