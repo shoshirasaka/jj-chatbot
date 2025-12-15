@@ -109,7 +109,7 @@ function scoreItem(q: string, itemName: string) {
 }
 
 function pickBestInStock(q: string, items: any[]) {
-  const candidates = items.filter(x => x?.is_visible && x?.in_stock);
+ const candidates = items.filter((x: any) => x?.is_visible && x?.in_stock);
   let best: any = null;
   let bestScore = 0;
 
@@ -246,15 +246,57 @@ for (const t of titles.slice(0, 3)) {
 }
 }
 
-    return new Response(
-      JSON.stringify({
-        reply,
-        recommended_items,
-        api_version: "2025-12-15-B",
-        debug_b, // いまは残してOK。安定したら消す。
-      }),
-      { status: 200, headers }
-    );
+// ===== A: 取扱いがある商品だけを返答に反映する =====
+const pickedNames = recommended_items
+  .filter((x: any) => x?.is_visible && x?.in_stock)
+  .map((x: any) => x?.name)
+  .filter(Boolean) as string[];
+
+let finalReply = reply;
+
+if (pickedNames.length === 0) {
+  finalReply =
+    "ごめんなさい、その条件だと在庫のある商品が見つからなかった！人数・時間・好きな系統（協力/対戦/ワイワイ）を教えてもらえる？";
+} else {
+  // ===== B: 採用できた商品だけで自然文を生成（2回目のOpenAI） =====
+  try {
+    const completion2 = await client.chat.completions.create({
+      model: "gpt-4.1-mini",
+      temperature: 0.6,
+      messages: [
+        {
+          role: "system",
+          content:
+            "あなたはボードゲーム販売店の店員です。次の『取扱い商品』に含まれるゲーム名だけを使っておすすめ文を作り、取扱いにないゲーム名は絶対に出さないでください。",
+        },
+        {
+          role: "user",
+          content:
+            `取扱い商品: ${pickedNames.join(" / ")}\n` +
+            "この中から最大3つを挙げて、自然な日本語で1〜2文のおすすめ文にしてください。",
+        },
+      ],
+    });
+
+    const text2 = completion2.choices[0]?.message?.content ?? "";
+    if (text2.trim()) finalReply = text2.trim();
+  } catch {
+    // 2回目が落ちてもAの安全文に戻す
+    const show = pickedNames.slice(0, 3).join("」「");
+    finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+  }
+}
+
+// ★返すのは finalReply
+return new Response(
+  JSON.stringify({
+    reply: finalReply,
+    recommended_items,
+    api_version: "2025-12-15-B",
+    debug_b,
+  }),
+  { status: 200, headers }
+);
   } catch (e: any) {
     debug_b = { ...debug_b, step: "catch", error: e?.message ?? String(e) };
     return new Response(
