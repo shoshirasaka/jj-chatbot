@@ -155,22 +155,41 @@ export async function POST(req: Request) {
     const client = new OpenAI({ apiKey });
 
     // ✅ ここがBの肝：文章＋タイトル配列をJSONで返させる
-    const completion = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.7,
-      messages: [
-        {
-          role: "system",
-          content: [
-            "あなたはボードゲーム販売店の店員です。日本語でカジュアルに返答してください。",
-            "必ず次のJSONだけを返してください（コードブロック禁止）。",
-            `{"reply":"...","titles":["ゲーム名1","ゲーム名2","ゲーム名3"]}`,
-            "titlesは商品検索に使うので、できるだけ正確な正式名称にしてください。",
-          ].join("\n"),
-        },
-        ...messages,
-      ],
-    });
+const completion = await client.chat.completions.create({
+  model: "gpt-4.1-mini",
+  temperature: 0.7,
+  response_format: {
+    type: "json_schema",
+    json_schema: {
+      name: "chatbot_reply",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["reply", "titles"],
+        properties: {
+          reply: { type: "string" },
+          titles: {
+            type: "array",
+            items: { type: "string" },
+            maxItems: 5
+          }
+        }
+      }
+    }
+  },
+  messages: [
+    {
+      role: "system",
+      content: [
+        "あなたはボードゲーム販売店の店員です。日本語でカジュアルに返答してください。",
+        "replyにはユーザーへの自然な返答を書いてください。",
+        "titlesには、reply内でおすすめしたゲーム名を配列で入れてください（最大5件）。",
+        "出力は指定スキーマのJSONのみです。"
+      ].join("\n"),
+    },
+    ...messages,
+  ],
+});
 
 const raw = completion.choices[0]?.message?.content ?? "";
 const parsed = extractJsonObject(raw) as { reply?: string; titles?: string[] } | null;
