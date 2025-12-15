@@ -190,7 +190,7 @@ for (const t of titles.slice(0, 3)) {
     // 2在庫なしでも“近い”候補は fallback に保持（次ステップ「在庫なし代替」に使う）
     if (!fallback) {
       // visibleだけ拾っておく（in_stockは問わない）
-      fallback = r.items.find(x => x?.is_visible) ?? null;
+      fallback = r.items.find((x: any) => x?.is_visible) ?? null;
     }
   }
 
