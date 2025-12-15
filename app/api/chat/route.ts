@@ -91,7 +91,7 @@ export async function POST(req: Request) {
     if (!SHOP_TOKEN) {
       debug_shop.step = "no_token";
     } else {
-      const url = `${SHOP_API_BASE}?limit=50&offset=0&token=${encodeURIComponent(
+      const url = `${SHOP_API_BASE}?limit=5000&offset=0&token=${encodeURIComponent(
         SHOP_TOKEN
       )}`;
       debug_shop.url = url;
