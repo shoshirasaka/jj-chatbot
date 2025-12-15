@@ -46,6 +46,59 @@ async function shopSearchByQ(q: string) {
   return { ok: true, status: r.status, items, url };
 }
 
+
+
+
+function normalizeTitle(s: string) {
+  return (s || "")
+    .replace(/[『』「」"'“”]/g, "")
+    .replace(/\s+/g, " ")
+    // 版・数字・拡張系のノイズを落とす（必要に応じて追加）
+    .replace(/(拡張|日本語版|新版|完全版|第\d+版|改訂版|再版)/g, "")
+    .replace(/[0-9０-９]+/g, "")
+    .trim();
+}
+
+function buildQueriesForTitle(title: string) {
+  const t = title.trim();
+  const n = normalizeTitle(t);
+
+  const variants = new Set<string>([
+    t,
+    n,
+    // 「：」「-」以降を落とす（副題除去）
+    t.split(/[:：\-－]/)[0].trim(),
+    n.split(/[:：\-－]/)[0].trim(),
+  ]);
+
+  return [...variants].filter(Boolean);
+}
+
+function scoreItem(q: string, itemName: string) {
+  const qn = normalizeTitle(q);
+  const iname = normalizeTitle(itemName);
+
+  if (!qn || !iname) return 0;
+  if (iname === qn) return 100;              // 正規化完全一致
+  if (iname.includes(qn)) return 70;         // 片方向部分一致
+  if (qn.includes(iname)) return 60;         // 逆方向部分一致
+  return 0;
+}
+
+function pickBestInStock(q: string, items: any[]) {
+  const candidates = items.filter(x => x?.is_visible && x?.in_stock);
+  let best: any = null;
+  let bestScore = 0;
+
+  for (const it of candidates) {
+    const s = scoreItem(q, it?.name || "");
+    if (s > bestScore) { bestScore = s; best = it; }
+  }
+  return bestScore > 0 ? best : null;
+}
+
+
+
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
   const headers = { "Content-Type": "application/json", ...cors(origin) };
@@ -86,7 +139,7 @@ export async function POST(req: Request) {
         {
           role: "system",
           content: [
-            "あなたはボードゲームカフェの店員です。日本語でカジュアルに返答してください。",
+            "あなたはボードゲーム販売店の店員です。日本語でカジュアルに返答してください。",
             "必ず次のJSONだけを返してください（コードブロック禁止）。",
             `{"reply":"...","titles":["ゲーム名1","ゲーム名2","ゲーム名3"]}`,
             "titlesは商品検索に使うので、できるだけ正確な正式名称にしてください。",
@@ -108,31 +161,36 @@ export async function POST(req: Request) {
     // ✅ EC-CUBE検索して、AIが言ったタイトルと一致する商品を拾う
     let recommended_items: any[] = [];
 
-    if (SHOP_TOKEN && titles.length) {
-      for (const t of titles.slice(0, 3)) {
-        const r = await shopSearchByQ(t);
+if (SHOP_TOKEN && titles.length) {
+  for (const title of titles.slice(0, 3)) {
 
-        debug_b.searches.push({
-          q: t,
-          ok: r.ok,
-          status: r.status,
-          url: r.url,
-          count: r.items.length,
-          sample_name: r.items[0]?.name ?? null,
-        });
+    // 表記揺れ候補（queries方式）
+    const queries = buildQueriesForTitle(title);
 
-        if (!r.ok) continue;
+    let best: any | null = null;
 
-        // 「公開&在庫」だけに絞る（あなたのAPIの定義に合わせる）
-        const hit = r.items.find((x: any) => x?.is_visible && x?.in_stock);
+    for (const q of queries) {
+      const r = await shopSearchByQ(q);
 
-        // 見つからなければとりあえず先頭（公開/在庫条件がAPI側で落ちてるケース対策）
-        const fallback = r.items[0];
+      debug_b.searches.push({
+        q,
+        ok: r.ok,
+        status: r.status,
+        url: r.url,
+        count: r.items.length,
+        sample_name: r.items[0]?.name ?? null,
+      });
 
-        if (hit) recommended_items.push(hit);
-        else if (fallback) recommended_items.push(fallback);
-      }
+      if (!r.ok) continue;
+
+      // 在庫＆公開だけから「最も一致する商品」を選ぶ（items[0]禁止）
+      const hit = pickBestInStock(q, r.items);
+      if (hit) { best = hit; break; }
     }
+
+    if (best) recommended_items.push(best);
+  }
+}
 
     return new Response(
       JSON.stringify({
