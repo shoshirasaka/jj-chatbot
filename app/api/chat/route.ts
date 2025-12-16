@@ -186,7 +186,7 @@ function cors(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, x-api-key, Authorization, x-debug",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
   };
@@ -326,6 +326,18 @@ function pickBestInStock(q: string, items: any[]) {
 
 
 export async function POST(req: Request) {
+
+
+const clientKey = getClientApiKey(req);
+
+if (!JJ_CHATBOT_API_KEY || clientKey !== JJ_CHATBOT_API_KEY) {
+  return new Response(JSON.stringify({ error: "unauthorized" }), {
+    status: 401,
+    headers,
+  });
+}
+
+
   const origin = req.headers.get("origin");
   const headers = { "Content-Type": "application/json", ...cors(origin) };
 
@@ -359,6 +371,25 @@ if (req.headers.get("x-debug") === "1") {
     { status: 200, headers }
   );
 }
+
+
+
+
+const JJ_CHATBOT_API_KEY = process.env.JJ_CHATBOT_API_KEY || "";
+
+function getClientApiKey(req: Request) {
+  const x = req.headers.get("x-api-key");
+  if (x) return x;
+
+  const auth = req.headers.get("authorization");
+  if (auth?.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+
+  return "";
+}
+
+
+
+
 
     const body = await req.json();
     const messages = (body?.messages ?? []) as Msg[];
