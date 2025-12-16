@@ -7,22 +7,6 @@ const ALLOWED_ORIGINS = new Set(["https://shop.jellyjellycafe.com"]);
 const SHOP_API_BASE = "https://shop.jellyjellycafe.com/chatbot-api/products";
 const SHOP_TOKEN = process.env.SHOP_TOKEN || ""; // test123 をVercel envへ
 
-
-
-const JJ_CHATBOT_API_KEY = process.env.JJ_CHATBOT_API_KEY || "";
-
-function getClientApiKey(req: Request) {
-  const x = req.headers.get("x-api-key");
-  if (x) return x.trim();
-
-  const auth = req.headers.get("authorization");
-  if (auth?.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
-
-  return "";
-}
-
-
-
 // 年齢カテゴリ（◯歳以上）
 const AGE_CATEGORY_MAP: Record<number, number> = {
   3: 163,
@@ -202,7 +186,7 @@ function cors(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, x-api-key, Authorization, x-debug",
+    "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
   };
@@ -259,12 +243,13 @@ async function shopSearchByQ(q: string) {
   return { ok: true, status: r.status, items, url };
 }
 
-async function shopTopSelling(categoryId: number, limit = 10, days = 90) {
+
+
+async function shopListByCategory(categoryId: number, limit = 200, offset = 0) {
   const url =
-    `https://shop.jellyjellycafe.com/chatbot-api/top-selling` +
-    `?category_id=${encodeURIComponent(String(categoryId))}` +
+    `${SHOP_API_BASE}?category_id=${encodeURIComponent(String(categoryId))}` +
     `&limit=${encodeURIComponent(String(limit))}` +
-    `&days=${encodeURIComponent(String(days))}` +
+    `&offset=${encodeURIComponent(String(offset))}` +
     `&token=${encodeURIComponent(SHOP_TOKEN)}`;
 
   const r = await fetch(url, { headers: { Accept: "application/json" } });
@@ -274,6 +259,8 @@ async function shopTopSelling(categoryId: number, limit = 10, days = 90) {
   const items = Array.isArray(data?.items) ? data.items : [];
   return { ok: true, status: r.status, items, url };
 }
+
+
 
 
 // 在庫あり・表示ありだけからランダムに最大take件
@@ -345,30 +332,6 @@ export async function POST(req: Request) {
   const origin = req.headers.get("origin");
   const headers = { "Content-Type": "application/json", ...cors(origin) };
 
-  // 認証（headers作成後にやる）
-  const clientKey = getClientApiKey(req);
-  if (!JJ_CHATBOT_API_KEY || clientKey !== JJ_CHATBOT_API_KEY) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers,
-    });
-  }
-
-
-
-const clientKey = getClientApiKey(req);
-
-if (!JJ_CHATBOT_API_KEY || clientKey !== JJ_CHATBOT_API_KEY) {
-  return new Response(JSON.stringify({ error: "unauthorized" }), {
-    status: 401,
-    headers,
-  });
-}
-
-
-  const origin = req.headers.get("origin");
-  const headers = { "Content-Type": "application/json", ...cors(origin) };
-
   let debug_b: any = {
     step: "init",
     token_set: !!SHOP_TOKEN,
@@ -385,39 +348,6 @@ if (!JJ_CHATBOT_API_KEY || clientKey !== JJ_CHATBOT_API_KEY) {
         headers,
       });
     }
-    
-    
-    // 追加：疎通・環境変数確認（このブロックは後で消してOK）
-if (req.headers.get("x-debug") === "1") {
-  return new Response(
-    JSON.stringify({
-      ok: true,
-      has_openai_key: !!process.env.OPENAI_API_KEY,
-      has_shop_token: !!SHOP_TOKEN,
-      node_runtime: process.version,
-    }),
-    { status: 200, headers }
-  );
-}
-
-
-
-
-const JJ_CHATBOT_API_KEY = process.env.JJ_CHATBOT_API_KEY || "";
-
-function getClientApiKey(req: Request) {
-  const x = req.headers.get("x-api-key");
-  if (x) return x;
-
-  const auth = req.headers.get("authorization");
-  if (auth?.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
-
-  return "";
-}
-
-
-
-
 
     const body = await req.json();
     const messages = (body?.messages ?? []) as Msg[];
@@ -458,16 +388,14 @@ debug_b.keyword_filter = keywordCategoryId
 
 // ===== キーワードカテゴリがヒットしたら「カテゴリ内ランダム」を優先（ここで早期return）=====
 if (keywordCategoryId && SHOP_TOKEN) {
-const rK = await shopTopSelling(keywordCategoryId, 10, 90);
-  
-  
+  const rK = await shopListByCategory(keywordCategoryId, 200, 0);
 
-debug_b.keyword_filter.list = {
-  ok: rK.ok,
-  status: rK.status,
-  url: rK.url,
-  count: rK.items.length,
-};
+  debug_b.keyword_filter.list = {
+    ok: rK.ok,
+    status: rK.status,
+    url: rK.url,
+    total: rK.items.length,
+  };
 
   if (rK.ok && rK.items.length) {
     let pool = rK.items;
@@ -629,47 +557,43 @@ if (pickedNames.length === 0) {
     finalReply =
       "ごめんなさい、その条件だと在庫のある商品が見つからなかった！人数・時間・好きな系統（協力/対戦/ワイワイ）を教えてもらえる？";
   } else {
-  
-  
-// まず「年齢カテゴリ」を優先（なければ人数カテゴリ）
-const primaryCat = ageCat ?? countCat!;
-const secondaryCat = ageCat && countCat ? countCat : null; // 両方あるときだけ使う
+    // まず「年齢カテゴリ」を優先で一覧取得（なければ人数カテゴリ）
+    const primaryCat = ageCat ?? countCat!;
+    const secondaryCat = ageCat && countCat ? countCat : null; // 両方あるときだけ使う
 
-// ★ ここを top-selling に変更（上位10件 / 過去90日）
-const r2 = await shopTopSelling(primaryCat, 10, 90);
+    const r2 = await shopListByCategory(primaryCat, 200, 0);
 
-debug_b.fallback = {
-  primaryCat,
-  secondaryCat,
-  ok: r2.ok,
-  status: r2.status,
-  url: r2.url,
-  count: r2.items.length,
-  days: 90,
-};
+    debug_b.fallback = {
+      primaryCat,
+      secondaryCat,
+      ok: r2.ok,
+      status: r2.status,
+      url: r2.url,
+      total: r2.items.length,
+    };
 
-if (r2.ok && r2.items.length) {
-  // 両方指定されてたら、もう片方カテゴリも満たすものだけ残す（AND）
-  let pool = r2.items;
-  if (secondaryCat) {
-    pool = pool.filter((it: any) => hasCategory(it, secondaryCat));
-    debug_b.fallback.after_secondary_filter = pool.length;
-  }
+    if (r2.ok && r2.items.length) {
+      // 両方指定されてたら、もう片方カテゴリも満たすものだけ残す（AND）
+      let pool = r2.items;
+      if (secondaryCat) {
+        pool = pool.filter((it: any) => hasCategory(it, secondaryCat));
+        debug_b.fallback.after_secondary_filter = pool.length;
+      }
 
-  const picked3 = pickRandomInStock(pool, 3);
+      const picked3 = pickRandomInStock(pool, 3);
 
-  if (picked3.length) {
-    recommended_items = picked3;
-    const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
-    finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
-  } else {
-    finalReply =
-      "ごめんなさい、その条件（年齢/人数）で在庫のある商品が見つからなかった…！人数か年齢を少し広げてみて〜";
-  }
-} else {
-  finalReply =
-    "ごめんなさい、売れ筋一覧が取得できなかった…！少し時間をおいてもう一度試してみて〜";
-}
+      if (picked3.length) {
+        recommended_items = picked3;
+        const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
+        finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+      } else {
+        finalReply =
+          "ごめんなさい、その条件（年齢/人数）で在庫のある商品が見つからなかった…！人数か年齢を少し広げてみて〜";
+      }
+    } else {
+      finalReply =
+        "ごめんなさい、カテゴリの商品一覧が取得できなかった…！少し時間をおいてもう一度試してみて〜";
+    }
   }
 }
 
