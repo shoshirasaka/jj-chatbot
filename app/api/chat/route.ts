@@ -16,7 +16,6 @@ function getClientApiKey(req: Request) {
 
   const auth = req.headers.get("authorization");
   if (auth?.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
-
   return "";
 }
 
@@ -371,8 +370,8 @@ export async function POST(req: Request) {
   const clientKey = getClientApiKey(req);
   
     // 🔽🔽🔽 ここに入れる 🔽🔽🔽
-  console.log("JJ_CHATBOT_API_KEY:", JJ_CHATBOT_API_KEY);
-  console.log("clientKey:", clientKey);
+//  console.log("JJ_CHATBOT_API_KEY:", JJ_CHATBOT_API_KEY);
+//  console.log("clientKey:", clientKey);
   // 🔼🔼🔼 ここまで 🔼🔼🔼
 
   if (!JJ_CHATBOT_API_KEY || clientKey !== JJ_CHATBOT_API_KEY) {
