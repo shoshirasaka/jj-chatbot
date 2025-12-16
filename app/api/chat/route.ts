@@ -694,7 +694,7 @@ return new Response(
   JSON.stringify({
     reply: finalReply,
     recommended_items,
-    api_version: "2025-12-15-B",
+    api_version: "2025-12-16-top-selling-enabled",
     debug_b,
   }),
   { status: 200, headers }
