@@ -467,7 +467,7 @@ if (countCategoryId && SHOP_TOKEN) {
         JSON.stringify({
           reply: finalReply,
           recommended_items: picked3,
-          api_version: "2025-12-16-top-selling",
+          api_version: "2025-12-16-top-selling-enabled",
           debug_b,
         }),
         { status: 200, headers }
@@ -508,7 +508,7 @@ if (keywordCategoryId && SHOP_TOKEN) {
         JSON.stringify({
           reply: finalReply,
           recommended_items: picked3,
-          api_version: "2025-12-15-B",
+          api_version: "2025-12-16-top-selling-enabled",
           debug_b,
         }),
         { status: 200, headers }
