@@ -4,10 +4,11 @@ export const runtime = "nodejs";
 
 const ALLOWED_ORIGINS = new Set(["https://shop.jellyjellycafe.com"]);
 
+
 const SHOP_API_BASE = "https://shop.jellyjellycafe.com/chatbot-api/products";
 const SHOP_TOKEN = process.env.SHOP_TOKEN || ""; // test123 をVercel envへ
-
 const JJ_CHATBOT_API_KEY = process.env.JJ_CHATBOT_API_KEY || "";
+const SHOP_TOP_SELLING_BASE = "https://shop.jellyjellycafe.com/chatbot-api/top-selling";
 
 function getClientApiKey(req: Request) {
   const x = req.headers.get("x-api-key");
@@ -275,6 +276,28 @@ async function shopListByCategory(categoryId: number, limit = 200, offset = 0) {
 
 
 
+async function shopTopSelling(params: { categoryId?: number; limit?: number; days?: number }) {
+  const limit = params.limit ?? 10;
+  const days = params.days ?? 90;
+
+  const qs = new URLSearchParams();
+  qs.set("limit", String(limit));
+  qs.set("days", String(days));
+  if (params.categoryId) qs.set("category_id", String(params.categoryId));
+  qs.set("token", SHOP_TOKEN);
+
+  const url = `${SHOP_TOP_SELLING_BASE}?${qs.toString()}`;
+  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!r.ok) return { ok: false, status: r.status, items: [] as any[], url };
+
+  const data = await r.json();
+  const items = Array.isArray(data?.items) ? data.items : [];
+  return { ok: true, status: r.status, items, url };
+}
+
+
+
+
 // 在庫あり・表示ありだけからランダムに最大take件
 function pickRandomInStock(items: any[], take = 3) {
   const pool = items.filter((x: any) => x?.is_visible && x?.in_stock);
@@ -396,6 +419,9 @@ const countCategoryId = COUNT_TRIGGER_RE.test(lastUserText)
 
 const keywordCategoryId = detectKeywordCategoryId(lastUserText);
 
+
+
+
 // debugに記録
 debug_b.age_filter = ageCategoryId
   ? { triggered: true, ageCategoryId }
@@ -408,6 +434,49 @@ debug_b.count_filter = countCategoryId
 debug_b.keyword_filter = keywordCategoryId
   ? { triggered: true, keywordCategoryId }
   : { triggered: false, keywordCategoryId: null };
+  
+  
+  
+  
+  // ===== 人数が出たら「売れ筋10件→ランダム3件」を最優先 =====
+if (countCategoryId && SHOP_TOKEN) {
+  const rT = await shopTopSelling({ categoryId: countCategoryId, limit: 10, days: 90 });
+
+  debug_b.top_selling = {
+    ok: rT.ok,
+    status: rT.status,
+    url: rT.url,
+    total: rT.items.length,
+  };
+
+  if (rT.ok && rT.items.length) {
+    let pool = rT.items;
+
+    // 任意：キーワード・年齢もANDで絞る（不要ならこの2行は消してOK）
+    if (keywordCategoryId) pool = pool.filter((it: any) => hasCategory(it, keywordCategoryId));
+    if (ageCategoryId) pool = pool.filter((it: any) => hasCategory(it, ageCategoryId));
+
+    debug_b.top_selling.after_filter = pool.length;
+
+    const picked3 = pickRandomInStock(pool, 3);
+    if (picked3.length) {
+      const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
+      const finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+
+      return new Response(
+        JSON.stringify({
+          reply: finalReply,
+          recommended_items: picked3,
+          api_version: "2025-12-16-top-selling",
+          debug_b,
+        }),
+        { status: 200, headers }
+      );
+    }
+  }
+  // ここに来たら「売れ筋から拾えなかった」→ 下の既存ロジックへ落とす
+}
+  
 
 // ===== キーワードカテゴリがヒットしたら「カテゴリ内ランダム」を優先（ここで早期return）=====
 if (keywordCategoryId && SHOP_TOKEN) {
