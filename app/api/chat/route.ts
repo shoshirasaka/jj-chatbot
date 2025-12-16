@@ -369,6 +369,11 @@ export async function POST(req: Request) {
   
     // ===== API KEY 認証 =====
   const clientKey = getClientApiKey(req);
+  
+    // 🔽🔽🔽 ここに入れる 🔽🔽🔽
+  console.log("JJ_CHATBOT_API_KEY:", JJ_CHATBOT_API_KEY);
+  console.log("clientKey:", clientKey);
+  // 🔼🔼🔼 ここまで 🔼🔼🔼
 
   if (!JJ_CHATBOT_API_KEY || clientKey !== JJ_CHATBOT_API_KEY) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
