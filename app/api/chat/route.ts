@@ -7,6 +7,18 @@ const ALLOWED_ORIGINS = new Set(["https://shop.jellyjellycafe.com"]);
 const SHOP_API_BASE = "https://shop.jellyjellycafe.com/chatbot-api/products";
 const SHOP_TOKEN = process.env.SHOP_TOKEN || ""; // test123 をVercel envへ
 
+const JJ_CHATBOT_API_KEY = process.env.JJ_CHATBOT_API_KEY || "";
+
+function getClientApiKey(req: Request) {
+  const x = req.headers.get("x-api-key");
+  if (x) return x.trim();
+
+  const auth = req.headers.get("authorization");
+  if (auth?.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+
+  return "";
+}
+
 // 年齢カテゴリ（◯歳以上）
 const AGE_CATEGORY_MAP: Record<number, number> = {
   3: 163,
@@ -186,7 +198,7 @@ function cors(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, x-api-key, Authorization, x-debug",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
   };
@@ -331,6 +343,17 @@ function pickBestInStock(q: string, items: any[]) {
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
   const headers = { "Content-Type": "application/json", ...cors(origin) };
+  
+    // ===== API KEY 認証 =====
+  const clientKey = getClientApiKey(req);
+
+  if (!JJ_CHATBOT_API_KEY || clientKey !== JJ_CHATBOT_API_KEY) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers,
+    });
+  }
+  
 
   let debug_b: any = {
     step: "init",
