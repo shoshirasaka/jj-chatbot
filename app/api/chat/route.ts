@@ -243,13 +243,12 @@ async function shopSearchByQ(q: string) {
   return { ok: true, status: r.status, items, url };
 }
 
-
-
-async function shopListByCategory(categoryId: number, limit = 200, offset = 0) {
+async function shopTopSelling(categoryId: number, limit = 10, days = 90) {
   const url =
-    `${SHOP_API_BASE}?category_id=${encodeURIComponent(String(categoryId))}` +
+    `https://shop.jellyjellycafe.com/chatbot-api/top-selling` +
+    `?category_id=${encodeURIComponent(String(categoryId))}` +
     `&limit=${encodeURIComponent(String(limit))}` +
-    `&offset=${encodeURIComponent(String(offset))}` +
+    `&days=${encodeURIComponent(String(days))}` +
     `&token=${encodeURIComponent(SHOP_TOKEN)}`;
 
   const r = await fetch(url, { headers: { Accept: "application/json" } });
@@ -259,6 +258,7 @@ async function shopListByCategory(categoryId: number, limit = 200, offset = 0) {
   const items = Array.isArray(data?.items) ? data.items : [];
   return { ok: true, status: r.status, items, url };
 }
+
 
 // 在庫あり・表示ありだけからランダムに最大take件
 function pickRandomInStock(items: any[], take = 3) {
@@ -385,14 +385,16 @@ debug_b.keyword_filter = keywordCategoryId
 
 // ===== キーワードカテゴリがヒットしたら「カテゴリ内ランダム」を優先（ここで早期return）=====
 if (keywordCategoryId && SHOP_TOKEN) {
-  const rK = await shopListByCategory(keywordCategoryId, 200, 0);
+const rK = await shopTopSelling(keywordCategoryId, 10, 90);
+  
+  
 
-  debug_b.keyword_filter.list = {
-    ok: rK.ok,
-    status: rK.status,
-    url: rK.url,
-    total: rK.items.length,
-  };
+debug_b.keyword_filter.list = {
+  ok: rK.ok,
+  status: rK.status,
+  url: rK.url,
+  count: rK.items.length,
+};
 
   if (rK.ok && rK.items.length) {
     let pool = rK.items;
@@ -554,43 +556,47 @@ if (pickedNames.length === 0) {
     finalReply =
       "ごめんなさい、その条件だと在庫のある商品が見つからなかった！人数・時間・好きな系統（協力/対戦/ワイワイ）を教えてもらえる？";
   } else {
-    // まず「年齢カテゴリ」を優先で一覧取得（なければ人数カテゴリ）
-    const primaryCat = ageCat ?? countCat!;
-    const secondaryCat = ageCat && countCat ? countCat : null; // 両方あるときだけ使う
+  
+  
+// まず「年齢カテゴリ」を優先（なければ人数カテゴリ）
+const primaryCat = ageCat ?? countCat!;
+const secondaryCat = ageCat && countCat ? countCat : null; // 両方あるときだけ使う
 
-    const r2 = await shopListByCategory(primaryCat, 200, 0);
+// ★ ここを top-selling に変更（上位10件 / 過去90日）
+const r2 = await shopTopSelling(primaryCat, 10, 90);
 
-    debug_b.fallback = {
-      primaryCat,
-      secondaryCat,
-      ok: r2.ok,
-      status: r2.status,
-      url: r2.url,
-      total: r2.items.length,
-    };
+debug_b.fallback = {
+  primaryCat,
+  secondaryCat,
+  ok: r2.ok,
+  status: r2.status,
+  url: r2.url,
+  count: r2.items.length,
+  days: 90,
+};
 
-    if (r2.ok && r2.items.length) {
-      // 両方指定されてたら、もう片方カテゴリも満たすものだけ残す（AND）
-      let pool = r2.items;
-      if (secondaryCat) {
-        pool = pool.filter((it: any) => hasCategory(it, secondaryCat));
-        debug_b.fallback.after_secondary_filter = pool.length;
-      }
+if (r2.ok && r2.items.length) {
+  // 両方指定されてたら、もう片方カテゴリも満たすものだけ残す（AND）
+  let pool = r2.items;
+  if (secondaryCat) {
+    pool = pool.filter((it: any) => hasCategory(it, secondaryCat));
+    debug_b.fallback.after_secondary_filter = pool.length;
+  }
 
-      const picked3 = pickRandomInStock(pool, 3);
+  const picked3 = pickRandomInStock(pool, 3);
 
-      if (picked3.length) {
-        recommended_items = picked3;
-        const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
-        finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
-      } else {
-        finalReply =
-          "ごめんなさい、その条件（年齢/人数）で在庫のある商品が見つからなかった…！人数か年齢を少し広げてみて〜";
-      }
-    } else {
-      finalReply =
-        "ごめんなさい、カテゴリの商品一覧が取得できなかった…！少し時間をおいてもう一度試してみて〜";
-    }
+  if (picked3.length) {
+    recommended_items = picked3;
+    const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
+    finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+  } else {
+    finalReply =
+      "ごめんなさい、その条件（年齢/人数）で在庫のある商品が見つからなかった…！人数か年齢を少し広げてみて〜";
+  }
+} else {
+  finalReply =
+    "ごめんなさい、売れ筋一覧が取得できなかった…！少し時間をおいてもう一度試してみて〜";
+}
   }
 }
 
