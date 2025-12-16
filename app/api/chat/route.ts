@@ -42,17 +42,110 @@ const COUNT_CATEGORY_MAP: Record<number, number> = {
   10: 55,
 };
 
-const COUNT_TRIGGER_RE = /(\d{1,2})\s*人/;
+const COUNT_TRIGGER_RE = /([1-9]|10)\s*人/;
 
 // ▲▲▲ ここまで追加 ▲▲▲
 
 
+function detectKeywordCategoryId(text: string): number | null {
+  const hit = KEYWORD_RULES
+    .filter((r) => r.keywords.some((kw) => text.includes(kw)))
+    .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))[0];
+
+  return hit?.categoryId ?? null;
+}
+
+
+type KeywordRule = {
+  categoryId: number;
+  keywords: string[];
+  priority: number; // 大きいほど優先
+};
+
+const KEYWORD_RULES: KeywordRule[] = [
+  {categoryId: 69, keywords: ["パーティー", "ワイワイ", "わいわい"], priority: 50 },
+  {categoryId: 70, keywords: ["推理"], priority: 20 },
+  {categoryId: 71, keywords: ["2人専用"], priority: 80 },
+  {categoryId: 72, keywords: ["頭脳戦"], priority: 90 },
+  {categoryId: 73, keywords: ["手札管理"], priority: 150 },
+  {categoryId: 74, keywords: ["人狼"], priority: 20 },
+  {categoryId: 75, keywords: ["国産"], priority: 40 },
+  {categoryId: 76, keywords: ["カワイイ", "かわいい", "可愛い"], priority: 22 },
+  {categoryId: 77, keywords: ["ゲーム賞"], priority: 80 },
+  {categoryId: 78, keywords: ["はじめて", "初めて", "最初の"], priority: 13 },
+  {categoryId: 79, keywords: ["ダイス", "サイコロ","さいころ"], priority: 21 },
+  {categoryId: 80, keywords: ["キッズ"], priority: 44 },
+  {categoryId: 81, keywords: ["正体隠匿", "招待隠匿"], priority: 122 },
+  {categoryId: 82, keywords: ["スピード"], priority: 31 },
+  {categoryId: 83, keywords: ["協力"], priority: 41 },
+  {categoryId: 84, keywords: ["記憶"], priority: 55 },
+  {categoryId: 85, keywords: ["オークション","競り"], priority: 77 },
+  {categoryId: 86, keywords: ["動物"], priority: 30 },
+  {categoryId: 87, keywords: ["タイル"], priority: 20 },
+  {categoryId: 88, keywords: ["アブストラクト"], priority: 90 },
+  {categoryId: 89, keywords: ["想像力"], priority: 49 },
+  {categoryId: 90, keywords: ["ブラフ"], priority: 76 },
+  {categoryId: 91, keywords: ["ペア","チーム"], priority: 29 },
+  {categoryId: 92, keywords: ["スペース広め"], priority: 90 },
+  {categoryId: 93, keywords: ["チキンレース"], priority: 98 },
+  {categoryId: 94, keywords: ["テクニック"], priority: 39 },
+  {categoryId: 95, keywords: ["バランス"], priority: 25 },
+  {categoryId: 96, keywords: ["運"], priority: 24 },
+  {categoryId: 97, keywords: ["バッティング"], priority: 112 },
+  {categoryId: 98, keywords: ["エリアマジョリティ"], priority:115 },
+  {categoryId: 99, keywords: ["大喜利"], priority: 101 },
+  {categoryId: 100, keywords: ["交渉"], priority: 77 },
+  {categoryId: 101, keywords: ["パズル"], priority: 55 },
+  {categoryId: 102, keywords: ["バースト"], priority: 52 },
+  {categoryId: 105, keywords: ["拡大再生産"], priority: 153 },
+  {categoryId: 106, keywords: ["デッキ構築"], priority: 144 },
+  {categoryId: 107, keywords: ["お絵描き"], priority: 77 },
+  {categoryId: 108, keywords: ["ワーカープレイスメント"], priority: 132 },
+  {categoryId: 110, keywords: ["すごろく"], priority: 66 },
+  {categoryId: 112, keywords: ["トリックテイキング","トリテ"], priority: 99 },
+  {categoryId: 114, keywords: ["可変ボード"], priority: 200 },
+  {categoryId: 116, keywords: ["レース"], priority: 49 },
+  {categoryId: 117, keywords: ["アクション"], priority: 20 },
+  {categoryId: 119, keywords: ["ドラフト"], priority: 14 },
+  {categoryId: 120, keywords: ["クイズ"], priority: 66 },
+  {categoryId: 135, keywords: ["定番"], priority: 33 },
+  {categoryId: 136, keywords: ["シンプル"], priority: 22 },
+  {categoryId: 137, keywords: ["小箱"], priority: 43 },
+  {categoryId: 139, keywords: ["セットコレクション"], priority: 178 },
+  {categoryId: 140, keywords: ["ファンタジー"], priority: 21 },
+  {categoryId: 146, keywords: ["音を使う"], priority: 210 },
+  {categoryId: 149, keywords: ["カードドラフト"], priority: 66 },
+  {categoryId: 150, keywords: ["紙ペンゲーム"], priority: 89 },
+  {categoryId: 151, keywords: ["TRPG"], priority: 140 },
+  {categoryId: 152, keywords: ["将棋"], priority: 80 },
+  {categoryId: 155, keywords: ["謎解き本"], priority: 192 },
+  {categoryId: 156, keywords: ["カード配置"], priority: 55 },
+  {categoryId: 157, keywords: ["エリア移動"], priority: 89 },
+  {categoryId: 158, keywords: ["マーダーミステリー","マダミス"], priority: 266 },
+  {categoryId: 160, keywords: ["コミュニケーション"], priority: 85 },
+  {categoryId: 178, keywords: ["ピザラジオ","ピザラジ"], priority: 229 },
+  {categoryId: 179, keywords: ["1人でも遊べる"], priority: 234 },
+  {categoryId: 180, keywords: ["謎解き"], priority: 190 },
+  {categoryId: 181, keywords: ["JELLY JELLY GAMES"], priority: 261 },
+  {categoryId: 182, keywords: ["心理戦","駆け引き"], priority: 111 },
+  {categoryId: 184, keywords: ["アップグレードキット"], priority: 220 },
+  {categoryId: 188, keywords: ["ゲームマーケット"], priority: 42 },
+  {categoryId: 191, keywords: ["拡張セット"], priority: 350 },
+  {categoryId: 196, keywords: ["エンジンビルド"], priority: 150 },
+  {categoryId: 199, keywords: ["allplay"], priority: 210 },
+  {categoryId: 201, keywords: ["ゴーアウト"], priority: 170 }
+];
+
+
+
+
+
 // 「4人」「10人」などから “人数カテゴリID” を決める
 function detectCountCategoryId(text: string): number | null {
-  const m = text.match(/(\d{1,2})\s*人/);
+  const m = text.match(/([1-9]|10)\s*人/); //  1〜10だけ拾う（14人を拾わない）
   if (!m) return null;
 
-  const n = Math.max(1, Math.min(10, Number(m[1]))); // 1〜10に丸める
+  const n = Number(m[1]);
   return COUNT_CATEGORY_MAP[n] ?? null;
 }
 
@@ -379,6 +472,54 @@ if (countCategoryId) {
   debug_b.count_filter = { triggered: true, countCategoryId };
 } else {
   debug_b.count_filter = { triggered: false, countCategoryId: null };
+}
+
+
+
+const keywordCategoryId = detectKeywordCategoryId(lastUserText);
+debug_b.keyword_filter = keywordCategoryId
+  ? { triggered: true, keywordCategoryId }
+  : { triggered: false, keywordCategoryId: null };
+
+
+// ===== キーワードカテゴリがヒットしたら「カテゴリ内ランダム」を優先 =====
+if (keywordCategoryId) {
+  const rK = await shopListByCategory(keywordCategoryId, 200, 0);
+
+  debug_b.keyword_filter.list = {
+    ok: rK.ok,
+    status: rK.status,
+    url: rK.url,
+    total: rK.items.length,
+  };
+
+  if (rK.ok && rK.items.length) {
+    let pool = rK.items;
+
+    // 年齢・人数があればANDで絞る（両方あれば両方必須）
+    if (ageCategoryId) pool = pool.filter((it: any) => hasCategory(it, ageCategoryId));
+    if (countCategoryId) pool = pool.filter((it: any) => hasCategory(it, countCategoryId));
+
+    const picked3 = pickRandomInStock(pool, 3);
+
+    if (picked3.length) {
+      recommended_items = picked3;
+
+      const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
+      const finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+
+      return new Response(
+        JSON.stringify({
+          reply: finalReply,
+          recommended_items,
+          api_version: "2025-12-15-B",
+          debug_b,
+        }),
+        { status: 200, headers }
+      );
+    }
+  }
+  // キーワードヒットしたけど拾えなかった → そのまま既存ロジック（AI→検索→fallback）に落とす
 }
 
 
