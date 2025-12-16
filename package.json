@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@upstash/redis": "^1.35.8",
-    "next": "15.4.3",
+    "next": "^15.4.8",
     "openai": "^6.10.0",
     "react": "19.2.1",
     "react-dom": "19.2.1"
@@ -21,7 +21,7 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "eslint": "^9",
-    "eslint-config-next": "15.4.3",
+    "eslint-config-next": "^15.4.8",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
