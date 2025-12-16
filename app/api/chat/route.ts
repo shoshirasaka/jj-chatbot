@@ -349,6 +349,78 @@ export async function POST(req: Request) {
         headers,
       });
     }
+    
+    // ===== 直近ユーザー発話 =====
+const lastUserText =
+  messages.filter((m) => m.role === "user").slice(-1)[0]?.content ?? "";
+
+// ===== 年齢 / 人数 / キーワード検出（OpenAIより先にやる）=====
+const ageCategoryId = AGE_TRIGGER_RE.test(lastUserText)
+  ? detectAgeCategoryId(lastUserText)
+  : null;
+
+const countCategoryId = COUNT_TRIGGER_RE.test(lastUserText)
+  ? detectCountCategoryId(lastUserText)
+  : null;
+
+const keywordCategoryId = detectKeywordCategoryId(lastUserText);
+
+// debugに記録
+debug_b.age_filter = ageCategoryId
+  ? { triggered: true, ageCategoryId }
+  : { triggered: false, ageCategoryId: null };
+
+debug_b.count_filter = countCategoryId
+  ? { triggered: true, countCategoryId }
+  : { triggered: false, countCategoryId: null };
+
+debug_b.keyword_filter = keywordCategoryId
+  ? { triggered: true, keywordCategoryId }
+  : { triggered: false, keywordCategoryId: null };
+
+// ===== キーワードカテゴリがヒットしたら「カテゴリ内ランダム」を優先（ここで早期return）=====
+if (keywordCategoryId && SHOP_TOKEN) {
+  const rK = await shopListByCategory(keywordCategoryId, 200, 0);
+
+  debug_b.keyword_filter.list = {
+    ok: rK.ok,
+    status: rK.status,
+    url: rK.url,
+    total: rK.items.length,
+  };
+
+  if (rK.ok && rK.items.length) {
+    let pool = rK.items;
+
+    // 年齢・人数があればANDで絞る（61を含んでればOK方式なので hasCategory でOK）
+    if (ageCategoryId) pool = pool.filter((it: any) => hasCategory(it, ageCategoryId));
+    if (countCategoryId) pool = pool.filter((it: any) => hasCategory(it, countCategoryId));
+
+    debug_b.keyword_filter.after_and_filter = pool.length;
+
+    const picked3 = pickRandomInStock(pool, 3);
+
+    if (picked3.length) {
+      const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
+      const finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+
+      return new Response(
+        JSON.stringify({
+          reply: finalReply,
+          recommended_items: picked3,
+          api_version: "2025-12-15-B",
+          debug_b,
+        }),
+        { status: 200, headers }
+      );
+    }
+  }
+
+  // ここに来た = キーワードはヒットしたが在庫ありで拾えなかった
+  // → 既存ロジック（OpenAI→検索→fallback）に落とす
+}
+    
+    
 
     const client = new OpenAI({ apiKey });
 
@@ -445,85 +517,13 @@ for (const t of titles.slice(0, 3)) {
 }
 }
 
-
-// ===== 年齢ワードがあれば「◯歳以上カテゴリ」に属する商品だけに絞る =====
-const lastUserText =
-  messages.filter((m) => m.role === "user").slice(-1)[0]?.content ?? "";
-
-const ageCategoryId = AGE_TRIGGER_RE.test(lastUserText)
-  ? detectAgeCategoryId(lastUserText)
-  : null;
-
-
-
+// ===== OpenAIで拾った候補も、年齢/人数があればANDで絞る（再検出はしない）=====
 if (ageCategoryId) {
   recommended_items = recommended_items.filter((it) => hasCategory(it, ageCategoryId));
-  debug_b.age_filter = { triggered: true, ageCategoryId };
-} else {
-  debug_b.age_filter = { triggered: false, ageCategoryId: null };
 }
-
-const countCategoryId = COUNT_TRIGGER_RE.test(lastUserText)
-  ? detectCountCategoryId(lastUserText)
-  : null;
-
 if (countCategoryId) {
   recommended_items = recommended_items.filter((it) => hasCategory(it, countCategoryId));
-  debug_b.count_filter = { triggered: true, countCategoryId };
-} else {
-  debug_b.count_filter = { triggered: false, countCategoryId: null };
 }
-
-
-
-const keywordCategoryId = detectKeywordCategoryId(lastUserText);
-debug_b.keyword_filter = keywordCategoryId
-  ? { triggered: true, keywordCategoryId }
-  : { triggered: false, keywordCategoryId: null };
-
-
-// ===== キーワードカテゴリがヒットしたら「カテゴリ内ランダム」を優先 =====
-if (keywordCategoryId) {
-  const rK = await shopListByCategory(keywordCategoryId, 200, 0);
-
-  debug_b.keyword_filter.list = {
-    ok: rK.ok,
-    status: rK.status,
-    url: rK.url,
-    total: rK.items.length,
-  };
-
-  if (rK.ok && rK.items.length) {
-    let pool = rK.items;
-
-    // 年齢・人数があればANDで絞る（両方あれば両方必須）
-    if (ageCategoryId) pool = pool.filter((it: any) => hasCategory(it, ageCategoryId));
-    if (countCategoryId) pool = pool.filter((it: any) => hasCategory(it, countCategoryId));
-
-    const picked3 = pickRandomInStock(pool, 3);
-
-    if (picked3.length) {
-      recommended_items = picked3;
-
-      const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
-      const finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
-
-      return new Response(
-        JSON.stringify({
-          reply: finalReply,
-          recommended_items,
-          api_version: "2025-12-15-B",
-          debug_b,
-        }),
-        { status: 200, headers }
-      );
-    }
-  }
-  // キーワードヒットしたけど拾えなかった → そのまま既存ロジック（AI→検索→fallback）に落とす
-}
-
-
-
 
 // ===== A: 取扱いがある商品だけを返答に反映する =====
 const pickedNames = recommended_items
