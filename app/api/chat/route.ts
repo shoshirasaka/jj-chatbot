@@ -24,8 +24,38 @@ const AGE_CATEGORY_MAP: Record<number, number> = {
   15: 175,
   16: 176,
 };
-
 const AGE_TRIGGER_RE = /(\d{1,2})\s*(歳|才)|子ども|子供|小学生/i;
+
+// ▼▼▼ ここに追加 ▼▼▼
+
+// 人数カテゴリ（◯人）
+const COUNT_CATEGORY_MAP: Record<number, number> = {
+  1: 64,
+  2: 63,
+  3: 62,
+  4: 61,
+  5: 60,
+  6: 59,
+  7: 58,
+  8: 57,
+  9: 56,
+  10: 55,
+};
+
+const COUNT_TRIGGER_RE = /(\d{1,2})\s*人/;
+
+// ▲▲▲ ここまで追加 ▲▲▲
+
+
+// 「4人」「10人」などから “人数カテゴリID” を決める
+function detectCountCategoryId(text: string): number | null {
+  const m = text.match(/(\d{1,2})\s*人/);
+  if (!m) return null;
+
+  const n = Math.max(1, Math.min(10, Number(m[1]))); // 1〜10に丸める
+  return COUNT_CATEGORY_MAP[n] ?? null;
+}
+
 
 // 「7才」などから “対象カテゴリID” を決める
 function detectAgeCategoryId(text: string): number | null {
@@ -115,18 +145,6 @@ async function shopSearchByQ(q: string) {
   return { ok: true, status: r.status, items, url };
 }
 
-async function shopSearchByCategory(categoryId: number, limit = 200) {
-  const url =
-    `${SHOP_API_BASE}?category_id=${encodeURIComponent(String(categoryId))}&limit=${encodeURIComponent(String(limit))}&offset=0&token=` +
-    encodeURIComponent(SHOP_TOKEN);
-
-  const r = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!r.ok) return { ok: false, status: r.status, items: [] as any[], url };
-
-  const data = await r.json();
-  const items = Array.isArray(data?.items) ? data.items : [];
-  return { ok: true, status: r.status, items, url };
-}
 
 
 async function shopListByCategory(categoryId: number, limit = 200, offset = 0) {
@@ -343,12 +361,27 @@ const ageCategoryId = AGE_TRIGGER_RE.test(lastUserText)
   ? detectAgeCategoryId(lastUserText)
   : null;
 
+
+
 if (ageCategoryId) {
   recommended_items = recommended_items.filter((it) => hasCategory(it, ageCategoryId));
   debug_b.age_filter = { triggered: true, ageCategoryId };
 } else {
   debug_b.age_filter = { triggered: false, ageCategoryId: null };
 }
+
+const countCategoryId = COUNT_TRIGGER_RE.test(lastUserText)
+  ? detectCountCategoryId(lastUserText)
+  : null;
+
+if (countCategoryId) {
+  recommended_items = recommended_items.filter((it) => hasCategory(it, countCategoryId));
+  debug_b.count_filter = { triggered: true, countCategoryId };
+} else {
+  debug_b.count_filter = { triggered: false, countCategoryId: null };
+}
+
+
 
 
 // ===== A: 取扱いがある商品だけを返答に反映する =====
@@ -360,13 +393,30 @@ const pickedNames = recommended_items
 let finalReply = reply;
 
 if (pickedNames.length === 0) {
-  // 年齢フィルタが発火しているなら「カテゴリ内ランダム3」で救済
-  const ageCat = debug_b?.age_filter?.ageCategoryId;
+  const ageCat: number | null =
+    debug_b?.age_filter?.triggered && typeof debug_b?.age_filter?.ageCategoryId === "number"
+      ? debug_b.age_filter.ageCategoryId
+      : null;
 
-  if (debug_b?.age_filter?.triggered && typeof ageCat === "number") {
-    const r2 = await shopListByCategory(ageCat, 200, 0);
+  const countCat: number | null =
+    debug_b?.count_filter?.triggered && typeof debug_b?.count_filter?.countCategoryId === "number"
+      ? debug_b.count_filter.countCategoryId
+      : null;
 
-    debug_b.age_filter.fallback_list = {
+  // どっちも指定なし → 従来メッセージ
+  if (!ageCat && !countCat) {
+    finalReply =
+      "ごめんなさい、その条件だと在庫のある商品が見つからなかった！人数・時間・好きな系統（協力/対戦/ワイワイ）を教えてもらえる？";
+  } else {
+    // まず「年齢カテゴリ」を優先で一覧取得（なければ人数カテゴリ）
+    const primaryCat = ageCat ?? countCat!;
+    const secondaryCat = ageCat && countCat ? countCat : null; // 両方あるときだけ使う
+
+    const r2 = await shopListByCategory(primaryCat, 200, 0);
+
+    debug_b.fallback = {
+      primaryCat,
+      secondaryCat,
       ok: r2.ok,
       status: r2.status,
       url: r2.url,
@@ -374,52 +424,27 @@ if (pickedNames.length === 0) {
     };
 
     if (r2.ok && r2.items.length) {
-      const picked3 = pickRandomInStock(r2.items, 3);
+      // 両方指定されてたら、もう片方カテゴリも満たすものだけ残す（AND）
+      let pool = r2.items;
+      if (secondaryCat) {
+        pool = pool.filter((it: any) => hasCategory(it, secondaryCat));
+        debug_b.fallback.after_secondary_filter = pool.length;
+      }
+
+      const picked3 = pickRandomInStock(pool, 3);
 
       if (picked3.length) {
         recommended_items = picked3;
-
         const show = picked3.map((x: any) => x?.name).filter(Boolean).join("」「");
         finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
       } else {
         finalReply =
-          "ごめんなさい、その年齢カテゴリで在庫のある商品が見つからなかった…！別の年齢/人数/時間も教えて〜";
+          "ごめんなさい、その条件（年齢/人数）で在庫のある商品が見つからなかった…！人数か年齢を少し広げてみて〜";
       }
     } else {
       finalReply =
-        "ごめんなさい、その年齢カテゴリの商品一覧が取得できなかった…！少し時間をおいてもう一度試してみて〜";
+        "ごめんなさい、カテゴリの商品一覧が取得できなかった…！少し時間をおいてもう一度試してみて〜";
     }
-  } else {
-    // 年齢指定じゃない普通の失敗
-    finalReply =
-      "ごめんなさい、その条件だと在庫のある商品が見つからなかった！人数・時間・好きな系統（協力/対戦/ワイワイ）を教えてもらえる？";
-  }
-} else {
-  // ===== B: 採用できた商品だけで自然文を生成（2回目のOpenAI） =====
-  try {
-    const completion2 = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.6,
-      messages: [
-        {
-          role: "system",
-          content:
-            "あなたはボードゲーム販売店の店員です。次の『取扱い商品』に含まれるゲーム名だけを使っておすすめ文を作り、取扱いにないゲーム名は絶対に出さないでください。",
-        },
-        {
-          role: "user",
-          content:
-            `取扱い商品: ${pickedNames.join(" / ")}\n` +
-            "この中から最大3つを挙げて、自然な日本語で1〜2文のおすすめ文にしてください。",
-        },
-      ],
-    });
-
-    const text2 = completion2.choices[0]?.message?.content ?? "";
-    if (text2.trim()) finalReply = text2.trim();
-  } catch {
-    const show = pickedNames.slice(0, 3).join("」「");
-    finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
   }
 }
 
