@@ -133,6 +133,11 @@ const KEYWORD_RULES: KeywordRule[] = [
   {categoryId: 191, keywords: ["拡張セット"], priority: 350 },
   {categoryId: 196, keywords: ["エンジンビルド"], priority: 150 },
   {categoryId: 199, keywords: ["allplay"], priority: 210 },
+  {categoryId: 65, keywords: ["簡単","初心者","カンタン","かんたん"], priority: 10 },
+  {categoryId: 67, keywords: ["上級者"], priority: 10 },
+  {categoryId: 45, keywords: ["重量級","重ゲー","重めな"], priority: 210 },
+  {categoryId: 10, keywords: ["軽めの","軽量級","ライトな","サクッと","さくっと"], priority: 4 },
+  {categoryId: 199, keywords: ["allplay"], priority: 210 },
   {categoryId: 201, keywords: ["ゴーアウト"], priority: 170 }
 ];
 
