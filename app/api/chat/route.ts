@@ -345,6 +345,20 @@ export async function POST(req: Request) {
         headers,
       });
     }
+    
+    
+    // 追加：疎通・環境変数確認（このブロックは後で消してOK）
+if (req.headers.get("x-debug") === "1") {
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      has_openai_key: !!process.env.OPENAI_API_KEY,
+      has_shop_token: !!SHOP_TOKEN,
+      node_runtime: process.version,
+    }),
+    { status: 200, headers }
+  );
+}
 
     const body = await req.json();
     const messages = (body?.messages ?? []) as Msg[];
