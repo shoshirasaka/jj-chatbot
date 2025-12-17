@@ -33,7 +33,7 @@ type ShopItem = {
   is_visible?: boolean;
   in_stock?: boolean;
   category_ids?: Array<number | string>;
-  [k: string]: any;
+  [k: string]: unknown;
 };
 
 type DebugBag = {
@@ -104,7 +104,7 @@ function cors(origin: string | null) {
 }
 
 function replyJson(
-  body: Record<string, any>,
+  body: Record<string, unknown>,
   opts: { status?: number; headers: Record<string, string>; wantDebug: boolean; debug_b: DebugBag }
 ) {
   const { status = 200, headers, wantDebug, debug_b } = opts;
@@ -124,9 +124,9 @@ function safeJsonParse<T>(text: string): T | null {
   }
 }
 
-function extractJsonObject(raw: string): any | null {
+function extractJsonObject(raw: string): unknown | null {
   // 1) 全文がJSONならそれ
-  const direct = safeJsonParse<any>(raw);
+  const direct = safeJsonParse<unknown>(raw);
   if (direct) return direct;
 
   // 2) 文中のJSONを抜く
@@ -135,7 +135,7 @@ function extractJsonObject(raw: string): any | null {
   if (start === -1 || end === -1 || end <= start) return null;
 
   const candidate = raw.slice(start, end + 1).trim();
-  return safeJsonParse<any>(candidate);
+  return safeJsonParse<unknown>(candidate);
 }
 
 function stripTrailingJson(raw: string): string {
@@ -453,7 +453,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let debug_b: DebugBag = {
+  const debug_b: DebugBag = {
     step: "init",
     token_set: !!SHOP_TOKEN,
     extracted_titles: [],
@@ -760,7 +760,7 @@ await logChat({
       { reply: finalReply, recommended_items, api_version: "2025-12-16-top-selling-enabled" },
       { status: 200, headers, wantDebug, debug_b }
     );
-  } catch (e: any) {
+  } catch (e: unknown) {
     debug_b.step = "catch";
     debug_b.error = e?.message ?? String(e);
     return replyJson({ error: debug_b.error ?? "unknown error" }, { status: 500, headers, wantDebug, debug_b });
