@@ -559,10 +559,20 @@ if (guideReply) {
           const show = picked3.map((x) => x?.name).filter(Boolean).join("」「");
           const finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
 
-          return replyJson(
-            { reply: finalReply, recommended_items: picked3, api_version: "2025-12-16-top-selling-enabled" },
-            { status: 200, headers, wantDebug, debug_b }
-          );
+await logChat({
+  req,
+  user_text: lastUserText,
+  reply_text: finalReply,
+  titles: picked3.map(x => x.name).filter(Boolean),
+  recommended_items: picked3,
+  debug_b,
+  api_version: "2025-12-16-top-selling-enabled",
+});
+
+return replyJson(
+  { reply: finalReply, recommended_items: picked3, api_version: "2025-12-16-top-selling-enabled" },
+  { status: 200, headers, wantDebug, debug_b }
+);
         }
       }
       // ここまで来たら売れ筋で拾えなかった → 次へ
@@ -587,10 +597,20 @@ if (guideReply) {
           const show = picked3.map((x) => x?.name).filter(Boolean).join("」「");
           const finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
 
-          return replyJson(
-            { reply: finalReply, recommended_items: picked3, api_version: "2025-12-16-top-selling-enabled" },
-            { status: 200, headers, wantDebug, debug_b }
-          );
+await logChat({
+  req,
+  user_text: lastUserText,
+  reply_text: finalReply,
+  titles: picked3.map(x => x.name).filter(Boolean),
+  recommended_items: picked3,
+  debug_b,
+  api_version: "2025-12-16-top-selling-enabled",
+});
+
+return replyJson(
+  { reply: finalReply, recommended_items: picked3, api_version: "2025-12-16-top-selling-enabled" },
+  { status: 200, headers, wantDebug, debug_b }
+);
         }
       }
       // ここまで来たらカテゴリで拾えなかった → 次へ
