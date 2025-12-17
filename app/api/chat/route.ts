@@ -561,7 +561,7 @@ export async function POST(req: Request) {
 
       if (!ageCat && !countCat) {
         finalReply =
-          "ごめんなさい、その条件だと在庫のある商品が見つからなかった！人数・時間・好きな系統（協力/対戦/ワイワイ）を教えてもらえる？";
+          "今回の条件では、在庫のあるゲームが見つかりませんでした。何人くらいで、どれくらいの時間、どんな雰囲気で遊びたいか（協力／対戦／ワイワイ）を教えてもらえたら、ぴったりのゲームを探します！";
       } else {
         const primaryCat = ageCat ?? countCat!;
         const secondaryCat = ageCat && countCat ? countCat : null;
@@ -591,10 +591,10 @@ export async function POST(req: Request) {
             const show = picked3.map((x) => x?.name).filter(Boolean).join("」「");
             finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
           } else {
-            finalReply = "ごめんなさい、その条件（年齢/人数）で在庫のある商品が見つからなかった…！人数か年齢を少し広げてみて〜";
+            finalReply = "今回の条件では、在庫のあるゲームが見つかりませんでした。何人くらいで、どれくらいの時間、どんな雰囲気で遊びたいか（協力／対戦／ワイワイ）を教えてもらえたら、ぴったりのゲームを探します！";
           }
         } else {
-          finalReply = "ごめんなさい、カテゴリの商品一覧が取得できなかった…！少し時間をおいてもう一度試してみて〜";
+          finalReply = "ごめんなさい、カテゴリの商品一覧が取得できなかった…！少し時間をおいてもう一度試してみてください！";
         }
       }
     }
