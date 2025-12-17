@@ -113,6 +113,58 @@ function stripTrailingJson(raw: string): string {
   return raw.replace(/\{[\s\S]*\}\s*$/m, "").trim();
 }
 
+
+/** ====== Guide FAQ (payment / shipping / postage) ====== */
+const GUIDE_URL = "https://shop.jellyjellycafe.com/user_data/guide";
+
+// 支払い・配送・送料っぽい質問を検出
+const GUIDE_TRIGGER_RE =
+  /(支払い方法|支払い|決済|支払|払う|振込|コンビニ|クレジット|クレジットカード|クレカ|amazon\s*pay|paypay|代引|代金引換|後払い|クロネコ代金後払い|配送方法|配送|発送|出荷|届(く|き)|お届け|送料|送料無料|ネコポス|宅急便コンパクト|ヤマト)/i;
+
+function buildGuideReply(userText: string): string | null {
+  if (!userText) return null;
+  if (!GUIDE_TRIGGER_RE.test(userText)) return null;
+
+  const isPayment =
+    /(支払い|決済|クレジットカード|クレカ|amazon\s*pay|paypay|代引|代金引換|後払い|クロネコ代金後払い)/i.test(userText);
+
+  const isShipping =
+    /(配送|発送|届(く|き)|お届け|送料|送料無料|ネコポス|宅急便コンパクト|ヤマト)/i.test(userText);
+
+  const lines: string[] = [];
+
+  // 配送・送料
+  if (isShipping) {
+    lines.push(
+      "【配送】クロネコヤマト／宅急便コンパクト／ネコポスから選べます。",
+      "【送料】配送方法・地域で異なります。購入総額10,000円以上で送料無料です。",
+      "・クロネコヤマト：全国一律800円（北海道1,200円／沖縄1,500円）",
+      "・宅急便コンパクト：600〜850円（お届け先により変動）",
+      "・ネコポス：全国一律350円"
+    );
+  }
+
+  // 支払い
+  if (isPayment) {
+    lines.push(
+      "【お支払い】クレジットカード（前払い）／Amazon Pay／PayPay／代金引換／クロネコ代金後払い が選べます。",
+      "・代金引換：代引手数料300円",
+      "・クロネコ代金後払い：手数料350円（税込）／請求書発行日から14日以内にコンビニ払い（※注文金額が税込54,000円以上は利用不可）"
+    );
+  }
+
+  // どっちにも当てはまらない（基本ここには来ないが保険）
+  if (!isPayment && !isShipping) {
+    lines.push("詳しくはご利用ガイドをご確認ください。");
+  }
+
+  lines.push(`詳しくはご利用ガイド：${GUIDE_URL}`);
+  return lines.join("\n");
+}
+
+
+
+
 /** ====== Category detection ====== */
 // 年齢カテゴリ（◯歳以上）
 const AGE_CATEGORY_MAP: Record<number, number> = {
@@ -399,6 +451,23 @@ export async function POST(req: Request) {
 
     // 直近ユーザー発話
     const lastUserText = messages.filter((m) => m.role === "user").slice(-1)[0]?.content ?? "";
+    
+    
+    // ===== ガイドFAQ（支払い/配送/送料）は最優先で固定回答（OpenAIに投げない）=====
+const guideReply = buildGuideReply(lastUserText);
+if (guideReply) {
+  debug_b.step = "guide_faq";
+  return replyJson(
+    {
+      reply: guideReply,
+      recommended_items: [],
+      api_version: "2025-12-16-top-selling-enabled",
+    },
+    { status: 200, headers, wantDebug, debug_b }
+  );
+}
+    
+    
 
     // 年齢 / 人数 / キーワード検出
     const ageCategoryId = AGE_TRIGGER_RE.test(lastUserText) ? detectAgeCategoryId(lastUserText) : null;
