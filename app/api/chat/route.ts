@@ -488,7 +488,7 @@ if (guideReply !== null) {
   await logChat({
     req,
     user_text: lastUserText,
-    reply_text: guideReply,
+reply_text: finalReply
   });
 
   return replyJson(
@@ -535,7 +535,7 @@ if (guideReply !== null) {
 await logChat({
   req,
   user_text: lastUserText,
-  reply_text: guideReply,
+reply_text: finalReply
 });
 
 return replyJson(
@@ -569,7 +569,7 @@ return replyJson(
 await logChat({
   req,
   user_text: lastUserText,
-  reply_text: guideReply,
+reply_text: finalReply
 });
 
 return replyJson(
@@ -654,7 +654,7 @@ if (!titles.length) {
 await logChat({
   req,
   user_text: lastUserText,
-  reply_text: guideReply,
+reply_text: finalReply
 });
 
   return replyJson(
