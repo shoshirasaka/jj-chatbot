@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,15 @@ const SHOP_TOP_SELLING_BASE = "https://shop.jellyjellycafe.com/chatbot-api/top-s
 
 const SHOP_TOKEN = process.env.SHOP_TOKEN || "";
 const JJ_CHATBOT_API_KEY = process.env.JJ_CHATBOT_API_KEY || "";
+
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+const supabase =
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    : null;
+
 
 /** ====== Types ====== */
 type Msg = { role: "user" | "assistant" | "system"; content: string };
@@ -50,6 +60,46 @@ type DebugBag = {
   };
   error?: string | null;
 };
+
+
+async function logChat(params: {
+  req: Request;
+  user_text: string;
+  reply_text: string;
+  titles?: string[];
+  recommended_items?: any[];
+  debug_b?: any;
+  api_version?: string;
+}) {
+  if (!supabase) return;
+
+  const ua = params.req.headers.get("user-agent") || "";
+  const ip =
+    params.req.headers.get("x-forwarded-for") ||
+    params.req.headers.get("x-real-ip") ||
+    "";
+
+  // 必要ならフロントで発行した session_id を body で渡してここに入れる（後でやる）
+  const session_id = params.req.headers.get("x-session-id") || null;
+
+  try {
+    await supabase.from("chat_logs").insert({
+      session_id,
+      user_text: params.user_text,
+      reply_text: params.reply_text,
+      titles: params.titles ?? [],
+      recommended_items: params.recommended_items ?? [],
+      api_version: params.api_version ?? null,
+      user_agent: ua,
+      ip,
+      debug_b: params.debug_b ?? null,
+    });
+  } catch (e) {
+    // ログ失敗で本処理は落としたくないので握りつぶす
+    console.error("logChat failed:", e);
+  }
+}
+
 
 /** ====== Helpers: auth / cors / response ====== */
 function getClientApiKey(req: Request) {
@@ -457,6 +507,17 @@ export async function POST(req: Request) {
 const guideReply = buildGuideReply(lastUserText);
 if (guideReply) {
   debug_b.step = "guide_faq";
+
+  await logChat({
+    req,
+    user_text: lastUserText,
+    reply_text: guideReply,
+    titles: [],
+    recommended_items: [],
+    debug_b,
+    api_version: "2025-12-16-top-selling-enabled",
+  });
+
   return replyJson(
     {
       reply: guideReply,
@@ -604,6 +665,17 @@ const completion = await client.chat.completions.create({
     // ===== A案: titles が空なら「雑談/一般回答」扱いでそのまま返す =====
 if (!titles.length) {
   debug_b.step = "chitchat_no_titles";
+
+  await logChat({
+    req,
+    user_text: lastUserText,
+    reply_text: reply,
+    titles: [],
+    recommended_items: [],
+    debug_b,
+    api_version: "2025-12-16-top-selling-enabled",
+  });
+
   return replyJson(
     { reply, recommended_items: [], api_version: "2025-12-16-top-selling-enabled" },
     { status: 200, headers, wantDebug, debug_b }
