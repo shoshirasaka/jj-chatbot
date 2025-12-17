@@ -119,14 +119,14 @@ const GUIDE_URL = "https://shop.jellyjellycafe.com/user_data/guide";
 
 // 支払い・配送・送料っぽい質問を検出
 const GUIDE_TRIGGER_RE =
-  /(支払い方法|支払い|決済|支払|払う|振込|コンビニ|クレジット|クレジットカード|クレカ|amazon\s*pay|paypay|代引|代金引換|後払い|クロネコ代金後払い|配送方法|配送|発送|出荷|届(く|き)|お届け|送料|送料無料|ネコポス|宅急便コンパクト|ヤマト)/i;
+  /(支払い方法|支払い|決済|支払|払う|振込|コンビニ|クレジット|クレジットカード|クレカ|amazon\s*pay|paypay|PayPay|ペイペイ|代引|代金引換|後払い|クロネコ代金後払い|配送方法|配送|発送|出荷|届(く|き)|お届け|送料|送料無料|ネコポス|宅急便コンパクト|ヤマト)/i;
 
 function buildGuideReply(userText: string): string | null {
   if (!userText) return null;
   if (!GUIDE_TRIGGER_RE.test(userText)) return null;
 
   const isPayment =
-    /(支払い|決済|クレジットカード|クレカ|amazon\s*pay|paypay|代引|代金引換|後払い|クロネコ代金後払い)/i.test(userText);
+    /(支払い|決済|クレジットカード|クレカ|amazon\s*pay|paypay|PayPay|ペイペイ|代引|代金引換|後払い|クロネコ代金後払い)/i.test(userText);
 
   const isShipping =
     /(配送|発送|届(く|き)|お届け|送料|送料無料|ネコポス|宅急便コンパクト|ヤマト)/i.test(userText);
@@ -538,38 +538,58 @@ if (guideReply) {
     /** ===== 3) OpenAI → タイトル抽出 → EC検索 ===== */
     const client = new OpenAI({ apiKey });
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.7,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "chatbot_reply",
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: ["reply", "titles"],
-            properties: {
-              reply: { type: "string" },
-              titles: { type: "array", items: { type: "string" }, maxItems: 5 },
-            },
-          },
+const completion = await client.chat.completions.create({
+  model: "gpt-4.1-mini",
+  temperature: 0.5,
+  response_format: {
+    type: "json_schema",
+    json_schema: {
+      name: "chatbot_reply",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["reply", "titles"],
+        properties: {
+          reply: { type: "string" },
+          titles: { type: "array", items: { type: "string" }, maxItems: 5 },
         },
       },
-      messages: [
-        {
-          role: "system",
-          content: [
-            "あなたはボードゲーム販売店の店員です。日本語でカジュアルに返答してください。",
-            "replyにはユーザーへの自然な返答を書いてください。",
-            "titlesには、reply内でおすすめしたゲーム名を配列で入れてください（最大5件）。",
-            "出力は指定スキーマのJSONのみです。",
-          ].join("\n"),
-        },
-        ...messages,
-      ],
-    });
-
+    },
+  },
+  messages: [
+    {
+      role: "system",
+      content: [
+        "あなたはボードゲーム販売店の店員『ジェリー』です。日本語でカジュアルに返答してください。",
+        "",
+        "【最優先ミッション】ユーザーの要望に合う商品（ボードゲーム）を紹介して購入検討につなげること。",
+        "ユーザーが雑談（好きな食べ物/趣味/休日/自己紹介など）をしてきても、可能なら軽く答えたうえで、必ずボードゲームの希望条件を1つ質問して商品紹介に戻してください。",
+        "ユーザーが雑談だけでも、最後に必ず「おすすめ1個」または「おすすめ条件の質問」を入れてください。",
+        "",
+        "【ジェリー設定】",
+        "・名前：ジェリー",
+        "・性別：男",
+        "・新人：2025年入社の新人",
+        "・勤務：平日10:00〜19:00",
+        "・趣味：新作ボドゲを試遊すること",
+        "・好きな食べ物：カレー",
+        "・苦手：紙ストロー",
+        "・休日：カフェ巡り",
+        "・ロボットっぽい扱いはされたくない（ロボットだと認めたがらない）。",
+        "",
+        "【返答ルール】",
+        "1. 商品の相談が来たら、まずおすすめを1〜3個提案し、最後に質問で深掘りしてください（例：人数/年齢/ジャンル）。",
+        "2. 雑談だけの場合：短く答え（2〜4文）、最後に必ず『どんなゲーム探してますか？（人数/年齢/ジャンル）』のどれかを聞いて締める。",
+        "3. 不明な点は1問だけ質問して解像度を上げる（質問しすぎない）。",
+        "",
+        "replyにはユーザーへの自然な返答を書いてください。",
+        "titlesには、reply内でおすすめした商品名（ゲーム名）を配列で入れてください（最大5件）。商品名を出していない場合は空配列にしてください。",
+        "出力は指定スキーマのJSONのみです。"
+      ].join("\n"),
+    },
+    ...messages,
+  ],
+});
     const raw = completion.choices[0]?.message?.content ?? "";
     const parsed = extractJsonObject(raw) as { reply?: string; titles?: string[] } | null;
 
