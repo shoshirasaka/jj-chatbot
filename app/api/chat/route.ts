@@ -155,7 +155,7 @@ type KeywordRule = { categoryId: number; keywords: string[]; priority: number };
 const KEYWORD_RULES: KeywordRule[] = [
   { categoryId: 69, keywords: ["パーティー", "ワイワイ", "わいわい"], priority: 50 },
   { categoryId: 70, keywords: ["推理"], priority: 20 },
-  { categoryId: 71, keywords: ["2人専用"], priority: 80 },
+  { categoryId: 71, keywords: ["2人専用","2人","二人","ふたり"], priority: 180 },
   { categoryId: 72, keywords: ["頭脳戦"], priority: 90 },
   { categoryId: 73, keywords: ["手札管理"], priority: 150 },
   { categoryId: 74, keywords: ["人狼"], priority: 20 },
