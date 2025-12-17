@@ -760,9 +760,12 @@ await logChat({
       { reply: finalReply, recommended_items, api_version: "2025-12-16-top-selling-enabled" },
       { status: 200, headers, wantDebug, debug_b }
     );
-  } catch (e: unknown) {
-    debug_b.step = "catch";
-    debug_b.error = e?.message ?? String(e);
-    return replyJson({ error: debug_b.error ?? "unknown error" }, { status: 500, headers, wantDebug, debug_b });
-  }
+} catch (e: unknown) {
+  debug_b.step = "catch";
+  debug_b.error = e instanceof Error ? e.message : String(e);
+  return replyJson(
+    { error: debug_b.error ?? "unknown error" },
+    { status: 500, headers, wantDebug, debug_b }
+  );
+}
 }
