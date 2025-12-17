@@ -227,11 +227,11 @@ const KEYWORD_RULES: KeywordRule[] = [
   { categoryId: 67, keywords: ["上級者"], priority: 10 },
   { categoryId: 45, keywords: ["重量級", "重ゲー", "重めな"], priority: 210 },
   { categoryId: 10, keywords: ["軽めの", "軽量級", "ライトな", "サクッと", "さくっと"], priority: 4 },
-  { categoryId: 240, keywords: ["500円", "1000円", "1500円", "2000円", "1千円", "2千円"], priority: 90 },
+  { categoryId: 240, keywords: ["500円", "1000円", "1500円", "2000円", "1千円", "2千円", "安い", "安価"], priority: 90 },
   { categoryId: 241, keywords: ["2500円", "3000円", "3500円", "4000円", "3千円", "4千円"], priority: 90 },
   { categoryId: 242, keywords: ["4500円", "5000円", "5500円", "6000円", "5千円", "6千円"], priority: 90 },
   { categoryId: 243, keywords: ["6500円", "7000円", "7500円", "8000円", "7千円", "8千円"], priority: 90 },
-  { categoryId: 244, keywords: ["8500円", "9000円", "9500円", "10000円", "1万円", "9千円"], priority: 90 },
+  { categoryId: 244, keywords: ["8500円", "9000円", "9500円", "10000円", "1万円", "9千円", "高い", "高価"], priority: 90 },
   { categoryId: 201, keywords: ["ゴーアウト"], priority: 170 },
 ];
 
