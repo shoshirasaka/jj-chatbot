@@ -600,6 +600,16 @@ const completion = await client.chat.completions.create({
     debug_b.extracted_titles = titles;
 
     let recommended_items: ShopItem[] = [];
+    
+    // ===== A案: titles が空なら「雑談/一般回答」扱いでそのまま返す =====
+if (!titles.length) {
+  debug_b.step = "chitchat_no_titles";
+  return replyJson(
+    { reply, recommended_items: [], api_version: "2025-12-16-top-selling-enabled" },
+    { status: 200, headers, wantDebug, debug_b }
+  );
+}
+    
 
     if (SHOP_TOKEN && titles.length) {
       for (const t of titles.slice(0, 3)) {
