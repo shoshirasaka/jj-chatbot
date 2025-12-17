@@ -66,38 +66,17 @@ async function logChat(params: {
   req: Request;
   user_text: string;
   reply_text: string;
-  titles?: string[];
-  recommended_items?: any[];
-  debug_b?: any;
-  api_version?: string;
 }) {
   if (!supabase) return;
 
-  const ua = params.req.headers.get("user-agent") || "";
-  const ip =
-    params.req.headers.get("x-forwarded-for") ||
-    params.req.headers.get("x-real-ip") ||
-    "";
-
-  // 必要ならフロントで発行した session_id を body で渡してここに入れる（後でやる）
   const session_id = params.req.headers.get("x-session-id") || null;
 
-  try {
-    await supabase.from("chat_logs").insert({
-      session_id,
-      user_text: params.user_text,
-      reply_text: params.reply_text,
-      titles: params.titles ?? [],
-      recommended_items: params.recommended_items ?? [],
-      api_version: params.api_version ?? null,
-      user_agent: ua,
-      ip,
-      debug_b: params.debug_b ?? null,
-    });
-  } catch (e) {
-    // ログ失敗で本処理は落としたくないので握りつぶす
-    console.error("logChat failed:", e);
-  }
+  const { error } = await supabase.from("chat_logs").insert([
+    { session_id, role: "user", content: params.user_text },
+    { session_id, role: "assistant", content: params.reply_text },
+  ]);
+
+  if (error) console.error("logChat insert error:", error);
 }
 
 
@@ -508,15 +487,11 @@ const guideReply = buildGuideReply(lastUserText);
 if (guideReply) {
   debug_b.step = "guide_faq";
 
-  await logChat({
-    req,
-    user_text: lastUserText,
-    reply_text: guideReply,
-    titles: [],
-    recommended_items: [],
-    debug_b,
-    api_version: "2025-12-16-top-selling-enabled",
-  });
+await logChat({
+  req,
+  user_text: lastUserText,
+  reply_text: guideReply,
+});
 
   return replyJson(
     {
@@ -562,11 +537,7 @@ if (guideReply) {
 await logChat({
   req,
   user_text: lastUserText,
-  reply_text: finalReply,
-titles: picked3.flatMap((x) => (x.name ? [x.name] : [])),
-  recommended_items: picked3,
-  debug_b,
-  api_version: "2025-12-16-top-selling-enabled",
+  reply_text: guideReply,
 });
 
 return replyJson(
@@ -600,11 +571,7 @@ return replyJson(
 await logChat({
   req,
   user_text: lastUserText,
-  reply_text: finalReply,
-titles: picked3.flatMap((x) => (x.name ? [x.name] : [])),
-  recommended_items: picked3,
-  debug_b,
-  api_version: "2025-12-16-top-selling-enabled",
+  reply_text: guideReply,
 });
 
 return replyJson(
@@ -686,15 +653,11 @@ const completion = await client.chat.completions.create({
 if (!titles.length) {
   debug_b.step = "chitchat_no_titles";
 
-  await logChat({
-    req,
-    user_text: lastUserText,
-    reply_text: reply,
-    titles: [],
-    recommended_items: [],
-    debug_b,
-    api_version: "2025-12-16-top-selling-enabled",
-  });
+await logChat({
+  req,
+  user_text: lastUserText,
+  reply_text: guideReply,
+});
 
   return replyJson(
     { reply, recommended_items: [], api_version: "2025-12-16-top-selling-enabled" },
