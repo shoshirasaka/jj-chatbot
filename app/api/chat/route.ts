@@ -484,14 +484,12 @@ export async function POST(req: Request) {
     
     // ===== ガイドFAQ（支払い/配送/送料）は最優先で固定回答（OpenAIに投げない）=====
 const guideReply = buildGuideReply(lastUserText);
-if (guideReply) {
-  debug_b.step = "guide_faq";
-
-await logChat({
-  req,
-  user_text: lastUserText,
-  reply_text: guideReply,
-});
+if (guideReply !== null) {
+  await logChat({
+    req,
+    user_text: lastUserText,
+    reply_text: guideReply,
+  });
 
   return replyJson(
     {
