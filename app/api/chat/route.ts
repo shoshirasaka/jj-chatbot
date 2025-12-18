@@ -80,6 +80,25 @@ async function logChat(params: {
 }
 
 
+function pickOne<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+const REPLY_TEMPLATES = [
+  (show: string) => `おすすめは「${show}」あたりかな！どれが気になる？`,
+  (show: string) => `この中だと「${show}」が相性良さそう！どう？`,
+  (show: string) => `その条件なら「${show}」がおすすめです！気になるのある？`,
+  (show: string) => `盛り上がりそうなのは「${show}」あたり！`,
+  (show: string) => `個人的に推すなら「${show}」かな。どうでしょう？`,
+  (show: string) => `なるほど、その条件で楽しめそうなのは「${show}」！`,
+  (show: string) => `この条件だと「${show}」がハマりそう！`,
+] as const;
+
+function buildRecommendReply(show: string): string {
+  return pickOne(REPLY_TEMPLATES)(show);
+}
+
+
 /** ====== Helpers: auth / cors / response ====== */
 function getClientApiKey(req: Request) {
   const x = req.headers.get("x-api-key");
@@ -530,7 +549,7 @@ reply_text: guideReply,
         const picked3 = pickRandomInStock(pool, 3);
         if (picked3.length) {
           const show = picked3.map((x) => x?.name).filter(Boolean).join("」「");
-          const finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+          const finalReply = buildRecommendReply(show);
 
 await logChat({
   req,
@@ -564,7 +583,7 @@ return replyJson(
         const picked3 = pickRandomInStock(pool, 3);
         if (picked3.length) {
           const show = picked3.map((x) => x?.name).filter(Boolean).join("」「");
-          const finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+          const finalReply = buildRecommendReply(show);
 
 await logChat({
   req,
@@ -746,7 +765,7 @@ await logChat({
           if (picked3.length) {
             recommended_items = picked3;
             const show = picked3.map((x) => x?.name).filter(Boolean).join("」「");
-            finalReply = `おすすめは「${show}」あたり！気になるのはどれ？`;
+            finalReply = buildRecommendReply(show);
           } else {
             finalReply = "今回の条件では、在庫のあるゲームが見つかりませんでした。何人くらいで、どれくらいの時間、どんな雰囲気で遊びたいか（協力／対戦／ワイワイ）を教えてもらえたら、ぴったりのゲームを探します！";
           }
