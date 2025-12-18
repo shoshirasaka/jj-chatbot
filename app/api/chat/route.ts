@@ -86,12 +86,12 @@ function pickOne<T>(arr: readonly T[]): T {
 
 const REPLY_TEMPLATES = [
   (show: string) => `おすすめは「${show}」あたりかな！どれが気になる？`,
-  (show: string) => `この中だと「${show}」が相性良さそう！どう？`,
+  (show: string) => `「${show}」が相性良さそう！どう？`,
   (show: string) => `その条件なら「${show}」がおすすめです！気になるのある？`,
   (show: string) => `盛り上がりそうなのは「${show}」あたり！`,
   (show: string) => `個人的に推すなら「${show}」かな。どうでしょう？`,
   (show: string) => `なるほど、その条件で楽しめそうなのは「${show}」！`,
-  (show: string) => `この条件だと「${show}」がハマりそう！`,
+  (show: string) => `その条件だと「${show}」がハマりそう！`,
 ] as const;
 
 function buildRecommendReply(show: string): string {
