@@ -533,7 +533,7 @@ reply_text: guideReply,
 
     /** ===== 1) 人数 → 売れ筋（最優先） ===== */
     if (countCategoryId && SHOP_TOKEN) {
-      const rT = await shopTopSelling({ categoryId: countCategoryId, limit: 10, days: 90 });
+      const rT = await shopTopSelling({ categoryId: countCategoryId, limit: 50, days: 180 });
 
       debug_b.top_selling = { ok: rT.ok, status: rT.status, url: rT.url, total: rT.items.length };
 
